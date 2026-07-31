@@ -4,6 +4,10 @@ import 'package:flutter/material.dart';
 
 import 'questions.dart';
 import 'question_model.dart';
+import 'score_manager.dart';
+
+import 'type_matcher.dart';
+import 'result_screen.dart';
 
 
 class PersonalityTestScreen extends StatefulWidget {
@@ -23,7 +27,7 @@ class _PersonalityTestScreenState
 
 
   int currentQuestion = 0;
-
+  final ScoreManager scoreManager = ScoreManager();
 
   late List<Question> shuffledQuestions;
 
@@ -58,6 +62,8 @@ class _PersonalityTestScreenState
     if(currentQuestion ==
         shuffledQuestions.length - 1){
 
+
+      print(scoreManager.getProfile());
       return;
 
     }
@@ -210,7 +216,15 @@ class _PersonalityTestScreenState
 
                       onPressed:(){
 
-                        nextQuestion();
+                        scoreManager.addScore(answer);
+                        if(currentQuestion == shuffledQuestions.length -1){
+                          final profile = scoreManager.getProfile();
+                          final type = TypeMatcher.match(profile);
+
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => ResultScreen(resultType: type,),),);
+                        } else{
+                          nextQuestion();
+                        }
 
                       },
 
