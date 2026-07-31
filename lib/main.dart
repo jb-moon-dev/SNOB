@@ -14,7 +14,7 @@ class TravelApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
 
       // 앱 이름
-      title: 'Travel Balance',
+      title: 'SNOB',
 
       // 전체 테마
       theme: ThemeData(
