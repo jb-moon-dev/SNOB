@@ -7,7 +7,9 @@ import 'question_model.dart';
 import 'score_manager.dart';
 
 import 'type_matcher.dart';
+import 'result_data.dart';
 import 'result_screen.dart';
+
 
 
 class PersonalityTestScreen extends StatefulWidget {
@@ -22,12 +24,18 @@ class PersonalityTestScreen extends StatefulWidget {
 }
 
 
+
 class _PersonalityTestScreenState
     extends State<PersonalityTestScreen> {
 
 
   int currentQuestion = 0;
-  final ScoreManager scoreManager = ScoreManager();
+
+
+  final ScoreManager scoreManager =
+      ScoreManager();
+
+
 
   late List<Question> shuffledQuestions;
 
@@ -36,37 +44,29 @@ class _PersonalityTestScreenState
 
 
 
+
   @override
   void initState() {
 
     super.initState();
 
-    shuffledQuestions = List<Question>.from(questions)
-      ..shuffle(Random());
+
+    shuffledQuestions = List<Question>.from(questions);
 
 
     shuffledAnswers =
         List<Answer>.from(
           shuffledQuestions[currentQuestion].answers,
         )
-        ..shuffle(Random());
+          ..shuffle(Random());
 
   }
 
 
 
 
-  void nextQuestion(){
 
-
-    if(currentQuestion ==
-        shuffledQuestions.length - 1){
-
-
-      print(scoreManager.getProfile());
-      return;
-
-    }
+  void nextQuestion() {
 
 
     setState(() {
@@ -76,16 +76,62 @@ class _PersonalityTestScreenState
 
 
       shuffledAnswers =
-          List.from(
+          List<Answer>.from(
             shuffledQuestions[currentQuestion].answers,
-          );
-
-
-      shuffledAnswers.shuffle(Random());
+          )
+            ..shuffle(Random());
 
 
     });
 
+
+  }
+
+
+
+
+
+  void finishTest() {
+
+
+    // 점수를 기반으로 27개 유형 key 생성
+    final type =
+        TypeMatcher.match(
+
+          city: scoreManager.city,
+          nature: scoreManager.nature,
+
+          famous: scoreManager.famous,
+          hidden: scoreManager.hidden,
+
+          active: scoreManager.active,
+          healing: scoreManager.healing,
+
+        );
+
+
+
+    // 유형 데이터 가져오기
+    final result =
+        ResultRepository.getResult(type);
+
+
+
+
+    Navigator.push(
+
+      context,
+
+      MaterialPageRoute(
+
+        builder: (context) =>
+            ResultScreen(
+              result: result,
+            ),
+
+      ),
+
+    );
 
   }
 
@@ -111,6 +157,7 @@ class _PersonalityTestScreenState
         const Text("여행 성향 테스트"),
 
       ),
+
 
 
 
@@ -153,7 +200,9 @@ class _PersonalityTestScreenState
 
 
 
+
             const SizedBox(height:30),
+
 
 
 
@@ -178,6 +227,7 @@ class _PersonalityTestScreenState
 
 
 
+
             const SizedBox(height:40),
 
 
@@ -192,13 +242,15 @@ class _PersonalityTestScreenState
               shuffledAnswers.map((answer){
 
 
+
                 return Padding(
 
 
                   padding:
                   const EdgeInsets.only(
-                      bottom:15
+                    bottom:15,
                   ),
+
 
 
 
@@ -210,34 +262,58 @@ class _PersonalityTestScreenState
 
 
 
+
                     child:
                     ElevatedButton(
 
 
-                      onPressed:(){
+                      onPressed: (){
 
+
+                        // 선택한 답변 점수 추가
                         scoreManager.addScore(answer);
-                        if(currentQuestion == shuffledQuestions.length -1){
-                          final profile = scoreManager.getProfile();
-                          final type = TypeMatcher.match(profile);
 
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => ResultScreen(resultType: type,),),);
-                        } else{
+
+
+
+                        if(currentQuestion ==
+                            shuffledQuestions.length - 1){
+
+
+                          finishTest();
+
+
+
+                        } else {
+
+
                           nextQuestion();
+
+
+
                         }
+
 
                       },
 
 
 
+
                       child:
-                      Text(answer.text),
+                      Text(
+
+                        answer.text,
+
+                      ),
+
 
 
                     ),
 
 
+
                   ),
+
 
 
                 );
@@ -254,6 +330,7 @@ class _PersonalityTestScreenState
 
 
         ),
+
 
       ),
 

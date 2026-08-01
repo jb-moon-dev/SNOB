@@ -4,12 +4,11 @@ import 'result_data.dart';
 
 class ResultScreen extends StatelessWidget {
 
-  final String resultType;
-
+  final ResultData result;
 
   const ResultScreen({
     super.key,
-    required this.resultType,
+    required this.result,
   });
 
 
@@ -17,69 +16,94 @@ class ResultScreen extends StatelessWidget {
   Widget build(BuildContext context) {
 
     return Scaffold(
-
       appBar: AppBar(
-        title: const Text("여행 성향 결과"),
+        title: const Text("나의 여행 유형"),
       ),
-
 
       body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
 
-        child: Column(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
 
-          mainAxisAlignment: MainAxisAlignment.center,
+            children: [
 
-          children: [
-
-
-            const Text(
-              "당신의 여행 유형은",
-              style: TextStyle(
-                fontSize: 22,
+              const Text(
+                "오늘 당신은 어떤 여행자일까요?",
+                style: TextStyle(
+                  fontSize: 18,
+                ),
               ),
-            ),
 
 
-            const SizedBox(height:20),
+              const SizedBox(height: 30),
 
 
-            Text(
-              ResultData.results[resultType]!["title"]!,
-              style: const TextStyle(
-                fontSize:32,
-                fontWeight: FontWeight.bold,
+              Text(
+                result.title,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
               ),
-            ),
 
-            const SizedBox(height:20),
-            Text(
-              ResultData.results[resultType]!["description"]!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 18,),),
-            
-            const SizedBox(height:20),
-            Text(
-              "추천 여행 키워드",
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+
+              const SizedBox(height: 20),
+
+
+              Text(
+                result.description,
+                style: const TextStyle(
+                  fontSize: 16,
+                ),
+                textAlign: TextAlign.center,
               ),
-            ),
 
-            const SizedBox(height: 10),
-            Text(
-              ResultData.results[resultType]!["keyword"]!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16,),),
 
-          ],
+              const SizedBox(height: 30),
 
+
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
+
+                decoration: BoxDecoration(
+                  color: Colors.green.shade100,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+
+                child: Text(
+                  result.keyword,
+                  style: const TextStyle(
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+
+
+              const SizedBox(height: 40),
+
+
+              ElevatedButton(
+                onPressed: () {
+
+                  Navigator.pop(context);
+
+                },
+
+                child: const Text(
+                  "다시 테스트하기",
+                ),
+              ),
+
+            ],
+          ),
         ),
-
       ),
-
     );
-
   }
-
 }
