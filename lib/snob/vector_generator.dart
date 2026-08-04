@@ -3,12 +3,13 @@ import 'region_vector.dart';
 import 'tourism_spot.dart';
 
 
+
 class VectorGenerator {
 
 
 
   // =================================
-  // TourismSpot → SpotVector 생성
+  // TourismSpot → SpotVector
   // =================================
 
   static SpotVector generateSpotVector(
@@ -26,55 +27,44 @@ class VectorGenerator {
 
 
 
-    // 🌆 도시 ↔ 🌿 자연
 
-    if(
-    spot.cat1.contains("자연") ||
-        spot.cat2.contains("자연") ||
-        spot.cat3.contains("산") ||
-        spot.cat3.contains("해변") ||
-        spot.cat3.contains("공원")
-    ){
-
-      nature += 30;
-
-    }
+    // =================================
+    // 🌿 자연 성향
+    // =================================
 
 
+    switch(spot.cat1){
 
-    if(
-    spot.cat3.contains("쇼핑") ||
-        spot.cat3.contains("문화") ||
-        spot.cat3.contains("역사")
-    ){
 
-      nature -= 30;
+      // 자연관광
+      case "A01":
 
-    }
+        nature += 30;
+
+        healing += 10;
+
+        break;
 
 
 
+      // 문화관광
+      case "A02":
 
+        nature -= 10;
 
-    // ⭐ 유명 ↔ 🔍 숨은
-
-    if(
-    spot.cat3.contains("명소") ||
-        spot.cat3.contains("대표")
-    ){
-
-      hidden -= 30;
-
-    }
+        break;
 
 
 
-    if(
-    spot.cat3.contains("마을") ||
-        spot.cat3.contains("골목")
-    ){
+      // 체험관광
+      case "A03":
 
-      hidden += 20;
+        nature += 10;
+
+        healing -= 10;
+
+        break;
+
 
     }
 
@@ -82,27 +72,98 @@ class VectorGenerator {
 
 
 
-    // ⚡ 활동 ↔ 🌙 힐링
+    // =================================
+    // 🔍 숨은 성향
+    // =================================
 
-    if(
-    spot.cat3.contains("레포츠") ||
-        spot.cat3.contains("체험") ||
-        spot.cat3.contains("액티비티")
-    ){
 
-      healing -= 30;
+    switch(spot.cat2){
+
+
+      // 자연 속 관광
+      case "A0101":
+
+        hidden += 20;
+
+        break;
+
+
+
+      // 역사/문화
+      case "A0201":
+
+        hidden += 10;
+
+        break;
+
+
+
+      // 관광시설
+      case "A0202":
+
+        hidden -= 10;
+
+        break;
+
+
+
+      // 체험/레저
+      case "A0203":
+
+        hidden += 20;
+
+        break;
+
 
     }
 
 
 
-    if(
-    spot.cat3.contains("휴양") ||
-        spot.cat3.contains("산책") ||
-        spot.cat3.contains("온천")
-    ){
 
-      healing += 30;
+
+    // =================================
+    // 🌙 힐링 성향
+    // =================================
+
+
+    switch(spot.cat3){
+
+
+      // 온천
+      case "A02020300":
+
+        healing += 30;
+
+        break;
+
+
+
+      // 산
+      case "A01010400":
+
+        nature += 20;
+
+        healing += 20;
+
+        break;
+
+
+
+      // 해변
+      case "A01010700":
+
+        nature += 20;
+
+        healing += 20;
+
+        break;
+
+
+
+      default:
+
+        break;
+
 
     }
 
@@ -113,8 +174,10 @@ class VectorGenerator {
     nature =
         nature.clamp(0,100).toDouble();
 
+
     hidden =
         hidden.clamp(0,100).toDouble();
+
 
     healing =
         healing.clamp(0,100).toDouble();
@@ -127,24 +190,37 @@ class VectorGenerator {
 
       spotName: spot.title,
 
-      regionName: extractRegion(spot.areaName),
+
+      regionName:
+      extractRegion(spot.areaName),
+
 
       nature: nature,
 
+
       hidden: hidden,
+
 
       healing: healing,
 
-      // API 연결 전 임시값
+
       congestion: 0,
 
     );
 
+
   }
 
+
+
+
+
+
+
   // =================================
-  // 주소 → 지역명 추출
+  // 주소 → 지역명 변환
   // =================================
+
 
   static String extractRegion(
 
@@ -156,7 +232,6 @@ class VectorGenerator {
     final parts =
 
     address.split(" ");
-
 
 
 
@@ -173,11 +248,19 @@ class VectorGenerator {
     return address;
 
 
-  }  
+  }
+
+
+
+
+
+
+
 
   // =================================
-  // SpotVector → RegionVector 생성
+  // SpotVector → RegionVector
   // =================================
+
 
   static List<RegionVector> generateRegions(
 
@@ -191,8 +274,6 @@ class VectorGenerator {
 
 
 
-
-    // 지역별 그룹화
 
     for(var spot in spots){
 
@@ -217,7 +298,6 @@ class VectorGenerator {
 
 
 
-
     List<RegionVector> regions = [];
 
 
@@ -229,7 +309,6 @@ class VectorGenerator {
             (regionName, spotList){
 
 
-
           double nature = 0;
 
           double hidden = 0;
@@ -237,7 +316,6 @@ class VectorGenerator {
           double healing = 0;
 
           double congestion = 0;
-
 
 
 
@@ -259,8 +337,8 @@ class VectorGenerator {
 
 
 
-
           double count =
+
           spotList.length.toDouble();
 
 
@@ -293,8 +371,8 @@ class VectorGenerator {
 
             ),
 
-          );
 
+          );
 
 
 
@@ -306,10 +384,13 @@ class VectorGenerator {
 
 
 
+
     return regions;
 
 
   }
+
+
 
 
 
