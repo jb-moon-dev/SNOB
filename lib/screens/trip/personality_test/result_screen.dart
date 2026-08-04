@@ -8,12 +8,17 @@ import '../../../snob/user_vector.dart';
 
 import '../../../services/region_repository.dart';
 
+import 'score_manager.dart';
+
 
 
 class ResultScreen extends StatefulWidget {
 
 
   final ResultData result;
+
+
+  final ScoreManager scoreManager;
 
 
 
@@ -23,6 +28,8 @@ class ResultScreen extends StatefulWidget {
 
     required this.result,
 
+    required this.scoreManager,
+
   });
 
 
@@ -31,7 +38,9 @@ class ResultScreen extends StatefulWidget {
   @override
   State<ResultScreen> createState() => _ResultScreenState();
 
+
 }
+
 
 
 
@@ -44,15 +53,18 @@ class _ResultScreenState extends State<ResultScreen> {
   RegionVector? recommend;
 
 
-
   bool loading = true;
+
+
+
+  String? errorMessage;
 
 
 
 
 
   @override
-  void initState(){
+  void initState() {
 
 
     super.initState();
@@ -68,58 +80,28 @@ class _ResultScreenState extends State<ResultScreen> {
 
 
 
-  // ================================
-  // 전국 데이터 기반 추천
-  // ================================
-
 
   Future<void> loadRecommendation() async {
 
 
 
-    final user = UserVector.fromScore(
-
-
-      cityScore: 2,
-
-      natureScore: 8,
-
-
-      famousScore: 3,
-
-      hiddenScore: 7,
-
-
-      activeScore: 2,
-
-      healingScore: 8,
-
-
-    );
+    try {
 
 
 
+      // 현재는 테스트 UserVector
+      // 추후 ScoreManager 연결 예정
+
+
+      final user = widget.scoreManager.getUserVector();
 
 
 
-    final regions =
+      // 전국 RegionVector 생성
 
-    await RegionRepository.getRegions();
+      final regions =
 
-
-
-
-
-
-    final result =
-
-    RecommendationEngine.recommendRandomRegion(
-
-      user,
-
-      regions,
-
-    );
+      await RegionRepository.getRegions();
 
 
 
@@ -127,16 +109,80 @@ class _ResultScreenState extends State<ResultScreen> {
 
 
 
-    setState(() {
+
+      final result =
+
+      RecommendationEngine.recommendRandomRegion(
+
+        user,
+
+        regions,
+
+      );
 
 
-      recommend = result;
 
 
-      loading = false;
 
 
-    });
+
+
+
+      // ⭐ 중요
+      // 화면이 사라졌으면 setState 실행 X
+
+      if (!mounted) return;
+
+
+
+
+
+
+      setState(() {
+
+
+
+        recommend = result;
+
+
+        loading = false;
+
+
+
+      });
+
+
+
+
+
+
+    } catch(e) {
+
+
+
+      if (!mounted) return;
+
+
+
+
+
+      setState(() {
+
+
+
+        loading = false;
+
+
+        errorMessage = e.toString();
+
+
+
+      });
+
+
+
+
+    }
 
 
 
@@ -148,15 +194,19 @@ class _ResultScreenState extends State<ResultScreen> {
 
 
 
+
+
   @override
-  Widget build(BuildContext context){
+  Widget build(BuildContext context) {
 
 
 
     return Scaffold(
 
 
+
       appBar: AppBar(
+
 
         title: const Text(
 
@@ -173,11 +223,15 @@ class _ResultScreenState extends State<ResultScreen> {
       body: Center(
 
 
+
         child: SingleChildScrollView(
 
 
 
-          padding: const EdgeInsets.all(24),
+          padding:
+
+          const EdgeInsets.all(24),
+
 
 
 
@@ -200,14 +254,15 @@ class _ResultScreenState extends State<ResultScreen> {
 
 
 
-
               const Text(
+
 
                 "오늘 당신은 어떤 여행자일까요?",
 
+
                 style: TextStyle(
 
-                  fontSize: 18,
+                  fontSize:18,
 
                 ),
 
@@ -227,19 +282,27 @@ class _ResultScreenState extends State<ResultScreen> {
 
               Text(
 
+
                 widget.result.title,
 
-                style: const TextStyle(
+
+                style:
+
+                const TextStyle(
 
                   fontSize:28,
 
-                  fontWeight:FontWeight.bold,
+                  fontWeight:
+
+                  FontWeight.bold,
 
                 ),
+
 
                 textAlign:
 
                 TextAlign.center,
+
 
               ),
 
@@ -257,17 +320,23 @@ class _ResultScreenState extends State<ResultScreen> {
 
               Text(
 
+
                 widget.result.description,
 
-                style: const TextStyle(
+
+                style:
+
+                const TextStyle(
 
                   fontSize:16,
 
                 ),
 
+
                 textAlign:
 
                 TextAlign.center,
+
 
               ),
 
@@ -276,8 +345,7 @@ class _ResultScreenState extends State<ResultScreen> {
 
 
 
-              const SizedBox(height:20),
-
+              const SizedBox(height:40),
 
 
 
@@ -291,8 +359,7 @@ class _ResultScreenState extends State<ResultScreen> {
 
 
 
-              const SizedBox(height:20),
-
+              const SizedBox(height:30),
 
 
 
@@ -301,18 +368,24 @@ class _ResultScreenState extends State<ResultScreen> {
 
               const Text(
 
+
                 "당신에게 추천하는 여행지",
 
-                style: TextStyle(
+
+                style:
+
+                TextStyle(
 
                   fontSize:22,
 
-                  fontWeight:FontWeight.bold,
+                  fontWeight:
+
+                  FontWeight.bold,
 
                 ),
 
-              ),
 
+              ),
 
 
 
@@ -330,7 +403,52 @@ class _ResultScreenState extends State<ResultScreen> {
               if(loading)
 
 
-                const CircularProgressIndicator()
+
+                const Column(
+
+                  children: [
+
+
+                    CircularProgressIndicator(),
+
+
+                    SizedBox(height:15),
+
+
+                    Text(
+
+                      "당신에게 맞는 여행지를 찾는 중입니다...",
+
+
+                    ),
+
+
+                  ],
+
+                )
+
+
+
+
+
+
+
+              else if(errorMessage != null)
+
+
+
+                Text(
+
+                  "추천 정보를 가져오는데 실패했습니다.\n$errorMessage",
+
+                  textAlign:
+
+                  TextAlign.center,
+
+                )
+
+
+
 
 
 
@@ -338,10 +456,12 @@ class _ResultScreenState extends State<ResultScreen> {
               else
 
 
+
                 Card(
 
 
                   elevation:4,
+
 
 
                   child: Padding(
@@ -353,15 +473,21 @@ class _ResultScreenState extends State<ResultScreen> {
 
 
 
+
                     child: Column(
 
 
                       children: [
 
 
+
+
+
                         const Text(
 
+
                           "🌿 추천 여행지",
+
 
                           style:
 
@@ -377,6 +503,7 @@ class _ResultScreenState extends State<ResultScreen> {
 
 
 
+
                         const SizedBox(height:10),
 
 
@@ -385,6 +512,7 @@ class _ResultScreenState extends State<ResultScreen> {
 
 
                         Text(
+
 
                           recommend!.regionName,
 
@@ -401,13 +529,13 @@ class _ResultScreenState extends State<ResultScreen> {
 
                           ),
 
+
                           textAlign:
 
                           TextAlign.center,
 
 
                         ),
-
 
 
 
@@ -435,16 +563,19 @@ class _ResultScreenState extends State<ResultScreen> {
 
 
 
+
               ElevatedButton(
 
 
-                onPressed: (){
+
+                onPressed: () {
 
 
                   Navigator.pop(context);
 
 
                 },
+
 
 
                 child:
@@ -455,7 +586,9 @@ class _ResultScreenState extends State<ResultScreen> {
 
                 ),
 
-              )
+
+
+              ),
 
 
 
