@@ -26,7 +26,7 @@ class TypeMatcher {
 
 
 
-    return "${location}_${place}_${style}";
+    return "${location}_${place}_$style";
 
   }
 

@@ -1,7 +1,27 @@
 import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
+import 'services/tourism_api_service.dart';
+
+void testApi() async {
+
+  final areas =
+      await TourismApiService.getAreaCodes();
+
+
+  for (var area in areas) {
+
+    print(
+      "${area["code"]} : ${area["name"]}"
+    );
+
+  }
+
+}
 
 void main() {
+
+  testApi();
+  
   runApp(const TravelApp());
 }
 
