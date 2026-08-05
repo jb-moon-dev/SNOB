@@ -1,76 +1,45 @@
 class TourismSpot {
-
-
-  // 관광지 ID (detailCommon2 호출용)
+  /// 관광지 ID
   final String contentId;
 
-
-  // 관광지명
+  /// 관광지명
   final String title;
 
-
-  // 주소
+  /// 주소
   final String address;
 
-
-  // 지역명
-  final String areaName;
-
-
-  // 관광 타입
+  /// 관광 타입
   final String contentTypeId;
 
+  /// 법정동 시도 코드
+  final String lDongRegnCd;
 
-  // 카테고리
-  final String cat1;
+  /// 법정동 시군구 코드
+  final String lDongSignguCd;
 
-  final String cat2;
+  /// 관광 분류체계
+  final String lclsSystm1;
+  final String lclsSystm2;
+  final String lclsSystm3;
 
-  final String cat3;
-
-
-  // 지역 코드
-  final String areaCode;
-
-  final String sigunguCode;
-
-
-  // 수정일
+  /// 수정일
   final String modifiedTime;
 
-
-
   const TourismSpot({
-
     required this.contentId,
-
     required this.title,
-
     required this.address,
-
-    required this.areaName,
-
     required this.contentTypeId,
-
-    required this.cat1,
-
-    required this.cat2,
-
-    required this.cat3,
-
-    required this.areaCode,
-
-    required this.sigunguCode,
-
+    required this.lDongRegnCd,
+    required this.lDongSignguCd,
+    required this.lclsSystm1,
+    required this.lclsSystm2,
+    required this.lclsSystm3,
     required this.modifiedTime,
-
   });
 
-
-
   @override
-  String toString(){
-
+  String toString() {
     return """
 
 ===== Tourism Spot =====
@@ -79,23 +48,19 @@ class TourismSpot {
 
 주소 : $address
 
-지역 : $areaName
-
 contentId : $contentId
 
 contentTypeId : $contentTypeId
 
-cat1 : $cat1
+법정동 시도 : $lDongRegnCd
+법정동 시군구 : $lDongSignguCd
 
-cat2 : $cat2
-
-cat3 : $cat3
+분류1 : $lclsSystm1
+분류2 : $lclsSystm2
+분류3 : $lclsSystm3
 
 ========================
 
 """;
-
   }
-
-
 }

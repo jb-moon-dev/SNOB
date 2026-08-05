@@ -1,17 +1,16 @@
 class UserVector {
 
 
-  // 🌿 도시 ↔ 자연
+  /// 자연 정도 (0~100)
   final double nature;
 
 
-  // 🔍 유명 ↔ 숨은
+  /// 숨은 정도 (0~100)
   final double hidden;
 
 
-  // 🌙 활동 ↔ 힐링
+  /// 힐링 정도 (0~100)
   final double healing;
-
 
 
 
@@ -29,10 +28,10 @@ class UserVector {
 
 
 
-  // =================================
-  // ScoreManager 점수 → UserVector 변환
-  // =================================
 
+  // =====================================
+  // ScoreManager 점수 변환
+  // =====================================
 
   factory UserVector.fromScore({
 
@@ -52,24 +51,23 @@ class UserVector {
     required int healingScore,
 
 
-  }){
+  }) {
 
 
-    int natureTotal =
 
+    final natureTotal =
         cityScore + natureScore;
 
 
 
-    int hiddenTotal =
-
+    final hiddenTotal =
         famousScore + hiddenScore;
 
 
 
-    int healingTotal =
-
+    final healingTotal =
         activeScore + healingScore;
+
 
 
 
@@ -78,7 +76,6 @@ class UserVector {
     return UserVector(
 
 
-      // 자연 비율
 
       nature:
 
@@ -86,15 +83,11 @@ class UserVector {
 
           ? 50
 
-          :
-
-      (natureScore / natureTotal * 100),
+          : (natureScore / natureTotal) * 100,
 
 
 
 
-
-      // 숨은 비율
 
       hidden:
 
@@ -102,15 +95,12 @@ class UserVector {
 
           ? 50
 
-          :
-
-      (hiddenScore / hiddenTotal * 100),
+          : (hiddenScore / hiddenTotal) * 100,
 
 
 
 
 
-      // 힐링 비율
 
       healing:
 
@@ -118,15 +108,16 @@ class UserVector {
 
           ? 50
 
-          :
+          : (healingScore / healingTotal) * 100,
 
-      (healingScore / healingTotal * 100),
 
 
     );
 
-
   }
+
+
+
 
 
 
@@ -139,11 +130,13 @@ class UserVector {
 
 ===== User Vector =====
 
-🌿 자연 : ${nature.toStringAsFixed(1)}
+🌿 자연 : $nature
 
-🔍 숨은 : ${hidden.toStringAsFixed(1)}
+🔍 숨은 : $hidden
 
-🌙 힐링 : ${healing.toStringAsFixed(1)}
+🌙 힐링 : $healing
+
+=======================
 
 """;
 

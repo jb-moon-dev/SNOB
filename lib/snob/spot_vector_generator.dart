@@ -2,12 +2,15 @@ import 'tourism_spot.dart';
 import 'spot_vector.dart';
 
 
+
 class SpotVectorGenerator {
 
 
+
   static SpotVector generate(
-    TourismSpot spot,
-  ) {
+      TourismSpot spot,
+      ) {
+
 
 
     double nature = 50;
@@ -16,32 +19,62 @@ class SpotVectorGenerator {
 
 
 
+
+
     // ==========================
     // 🌿 자연 점수
     // ==========================
 
-    if(spot.cat1 == "A01") {
 
-      // 자연 관광
+    final lcls1 =
+        spot.lclsSystm1;
+
+
+    final lcls2 =
+        spot.lclsSystm2;
+
+
+    final lcls3 =
+        spot.lclsSystm3;
+
+
+
+
+
+    // 자연 계열
+
+    if(lcls1 == "NA") {
+
       nature += 30;
 
     }
 
 
-    if(spot.cat2.startsWith("A0101")) {
 
-      // 자연 명소
+    // 자연 세부
+
+    if(
+    lcls2.startsWith("NA01")
+    ){
+
       nature += 20;
 
     }
 
 
-    if(spot.cat2.startsWith("A0201")) {
 
-      // 역사/문화
+    // 문화/역사 계열
+
+    if(
+    lcls1 == "HS"
+    ){
+
       nature -= 10;
 
     }
+
+
+
 
 
 
@@ -49,27 +82,45 @@ class SpotVectorGenerator {
     // 🔍 숨은 점수
     // ==========================
 
-    if(spot.cat3.contains("00")) {
-
-      hidden += 10;
-
-    }
 
 
-    // 이름 기반 간단 보정
-    final title = spot.title;
-
+    // 세부 코드가 구체적일수록 숨은 관광지 취급
 
     if(
-      title.contains("공원") ||
-      title.contains("산") ||
-      title.contains("숲") ||
-      title.contains("계곡")
+    lcls3.isNotEmpty &&
+        lcls3.endsWith("00")
     ){
 
       hidden += 10;
 
     }
+
+
+
+
+
+    final title =
+        spot.title;
+
+
+
+
+
+    if(
+    title.contains("공원") ||
+        title.contains("산") ||
+        title.contains("숲") ||
+        title.contains("계곡") ||
+        title.contains("길")
+    ){
+
+      hidden += 10;
+
+    }
+
+
+
+
 
 
 
@@ -77,11 +128,14 @@ class SpotVectorGenerator {
     // 🌙 힐링 점수
     // ==========================
 
+
+
     if(
-      title.contains("온천") ||
-      title.contains("휴양") ||
-      title.contains("힐링") ||
-      title.contains("치유")
+    title.contains("온천") ||
+        title.contains("휴양") ||
+        title.contains("힐링") ||
+        title.contains("치유") ||
+        title.contains("정원")
     ){
 
       healing += 30;
@@ -89,43 +143,75 @@ class SpotVectorGenerator {
     }
 
 
+
+
+
+    // 체험/레포츠 계열
+
     if(
-      spot.cat2.startsWith("A0202")
+    lcls1 == "VE"
     ){
 
-      // 체험/레포츠
-      healing -= 20;
+      healing -= 10;
 
     }
 
 
 
+
+
+
+    // ==========================
     // 범위 제한
+    // ==========================
+
+
     nature =
         nature.clamp(0,100);
 
+
     hidden =
         hidden.clamp(0,100);
+
 
     healing =
         healing.clamp(0,100);
 
 
 
+
+
+
+
     return SpotVector(
 
-      spotName: spot.title,
 
-      regionName: spot.areaName,
+      spotName:
+      spot.title,
 
-      nature: nature,
 
-      hidden: hidden,
+      regionName:
+      spot.address,
 
-      healing: healing,
 
-      // 아직 혼잡도 API 연결 전
-      congestion: 50,
+
+      nature:
+      nature,
+
+
+
+      hidden:
+      hidden,
+
+
+
+      healing:
+      healing,
+
+
+
+      congestion:
+      50,
 
     );
 

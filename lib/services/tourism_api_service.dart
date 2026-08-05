@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 import 'package:snob/snob/tourism_spot.dart';
 
@@ -15,16 +16,21 @@ class TourismApiService {
 
 
 
-  static Future<List<Map<String, String>>> getAreaCodes() async {
+  // =====================================
+  // 시도 코드 조회
+  // ldongCode2
+  // =====================================
+
+  static Future<List<String>> getRegionCodes() async {
 
 
-    List<Map<String, String>> areas = [];
+    List<String> codes = [];
 
 
 
     final url = Uri.parse(
 
-      "$baseUrl/areaCode2"
+      "$baseUrl/ldongCode2"
           "?serviceKey=$serviceKey"
           "&MobileOS=AND"
           "&MobileApp=SNOB"
@@ -39,41 +45,144 @@ class TourismApiService {
 
 
 
-    if(response.statusCode == 200){
+    if(response.statusCode != 200){
 
+      return [];
 
-      final data =
-          json.decode(response.body);
-
-
-
-      final items =
-          data["response"]
-              ["body"]
-              ["items"]
-              ["item"];
+    }
 
 
 
-      if(items != null){
+    final data =
+        json.decode(response.body);
 
 
-        for(var item in items){
+
+    dynamic items =
+        data["response"]
+            ["body"]
+            ["items"]
+            ["item"];
 
 
-          areas.add({
 
-            "code":
-            item["code"].toString(),
+    if(items == null){
 
-            "name":
-            item["name"].toString(),
+      return [];
 
-          });
+    }
 
 
-        }
 
+    if(items is Map){
+
+      items = [items];
+
+    }
+
+
+
+    for(var item in items){
+
+
+      codes.add(
+        item["code"].toString()
+      );
+
+
+    }
+
+
+
+    return codes;
+
+  }
+
+
+
+
+
+
+  // =====================================
+  // 시군구 코드 조회
+  // =====================================
+
+  static Future<List<String>> getSigunguCodes(
+      String regionCode,
+      ) async {
+
+
+    List<String> codes = [];
+
+
+
+    final url = Uri.parse(
+
+      "$baseUrl/ldongCode2"
+          "?serviceKey=$serviceKey"
+          "&MobileOS=AND"
+          "&MobileApp=SNOB"
+          "&_type=json"
+          "&lDongRegnCd=$regionCode"
+
+    );
+
+
+
+    final response =
+        await http.get(url);
+
+
+
+    if(response.statusCode != 200){
+
+      return [];
+
+    }
+
+
+
+    final data =
+        json.decode(response.body);
+
+
+
+    dynamic items =
+        data["response"]
+            ["body"]
+            ["items"]
+            ["item"];
+
+
+
+
+    if(items == null){
+
+      return [];
+
+    }
+
+
+
+    if(items is Map){
+
+      items = [items];
+
+    }
+
+
+
+    for(var item in items){
+
+
+      final sigungu =
+          item["code"]?.toString();
+
+
+
+      if(sigungu != null){
+
+        codes.add(sigungu);
 
       }
 
@@ -81,105 +190,230 @@ class TourismApiService {
     }
 
 
-    return areas;
 
+    return codes;
 
   }
-  static Future<List<TourismSpot>> getTourismSpotsByArea(
-    String areaCode,
-  ) async {
+    // =====================================
+  // 법정동 기반 관광지 조회
+  // =====================================
+
+  static Future<List<TourismSpot>>
+
+  getTourismSpotsByLegalDong(
+
+      String regnCd,
+
+      String signguCd,
+
+      ) async {
+
 
     List<TourismSpot> spots = [];
 
 
+
     final url = Uri.parse(
+
       "$baseUrl/areaBasedList2"
-      "?serviceKey=$serviceKey"
-      "&MobileOS=AND"
-      "&MobileApp=SNOB"
-      "&_type=json"
-      "&areaCode=$areaCode"
-      "&contentTypeId=12"
-      "&numOfRows=20",
+
+          "?serviceKey=$serviceKey"
+
+          "&MobileOS=AND"
+
+          "&MobileApp=SNOB"
+
+          "&_type=json"
+
+          "&numOfRows=100"
+
+          "&pageNo=1"
+
+          "&contentTypeId=12"
+
+          "&lDongRegnCd=$regnCd"
+
+          "&lDongSignguCd=$signguCd"
+
     );
 
 
-    final response = await http.get(url);
 
-
-    if (response.statusCode == 200) {
-
-
-      final data = json.decode(response.body);
-
-
-      final items =
-          data["response"]
-              ["body"]
-              ["items"]
-              ["item"];
+    final response =
+        await http.get(url);
 
 
 
-      if (items != null) {
+    if(response.statusCode != 200){
+
+      return [];
+
+    }
 
 
-        for (var item in items) {
+
+    final data =
+        json.decode(response.body);
 
 
-          spots.add(
 
-            TourismSpot(
-
-              contentId:
-                  item["contentid"]?.toString() ?? "",
-
-
-              title:
-                  item["title"]?.toString() ?? "",
+    dynamic items =
+        data["response"]
+            ["body"]
+            ["items"]
+            ["item"];
 
 
-              address:
-                  item["addr1"]?.toString() ?? "",
+
+    if(items == null){
+
+      return [];
+
+    }
 
 
-              areaName:
-                  item["addr1"]?.toString() ?? "",
+
+    if(items is Map){
+
+      items = [items];
+
+    }
 
 
-              contentTypeId:
-                  item["contenttypeid"]?.toString() ?? "",
+
+    for(var item in items){
 
 
-              cat1:
-                  item["cat1"]?.toString() ?? "",
+      spots.add(
+
+        TourismSpot(
+
+          contentId:
+          item["contentid"]?.toString() ?? "",
 
 
-              cat2:
-                  item["cat2"]?.toString() ?? "",
+          title:
+          item["title"]?.toString() ?? "",
 
 
-              cat3:
-                  item["cat3"]?.toString() ?? "",
+          address:
+          item["addr1"]?.toString() ?? "",
 
 
-              areaCode:
-                  item["areacode"]?.toString() ?? "",
+          contentTypeId:
+          item["contenttypeid"]?.toString() ?? "",
 
 
-              sigunguCode:
-                  item["sigungucode"]?.toString() ?? "",
+          lDongRegnCd:
+          item["lDongRegnCd"]?.toString() ?? "",
 
 
-              modifiedTime:
-                  item["modifiedtime"]?.toString() ?? "",
-
-            ),
-
-          );
+          lDongSignguCd:
+          item["lDongSignguCd"]?.toString() ?? "",
 
 
-        }
+          lclsSystm1:
+          item["lclsSystm1"]?.toString() ?? "",
+
+
+          lclsSystm2:
+          item["lclsSystm2"]?.toString() ?? "",
+
+
+          lclsSystm3:
+          item["lclsSystm3"]?.toString() ?? "",
+
+
+          modifiedTime:
+          item["modifiedtime"]?.toString() ?? "",
+
+        ),
+
+      );
+
+
+    }
+
+
+
+    return spots;
+
+
+  }
+
+
+
+
+
+
+
+  // =====================================
+  // 전국 관광지 조회
+  // =====================================
+
+  static Future<List<TourismSpot>>
+
+  getAllTourismSpots() async {
+
+
+    List<TourismSpot> allSpots = [];
+
+
+
+    final regions =
+        await getRegionCodes();
+
+
+
+    print(
+        "시도 개수 : ${regions.length}"
+    );
+
+
+
+    // 테스트용 1개 지역
+    for(var region in regions.take(1)){
+
+
+      final sigungus =
+          await getSigunguCodes(region);
+
+
+
+      print(
+          "시군구 개수 : ${sigungus.length}"
+      );
+
+
+
+      for(var sigungu in sigungus.take(3)){
+
+
+        print(
+          "조회 : $region / $sigungu"
+        );
+
+
+
+        final spots =
+            await getTourismSpotsByLegalDong(
+
+              region,
+
+              sigungu,
+
+            );
+
+
+
+        print(
+          "관광지 : ${spots.length}"
+        );
+
+
+
+        allSpots.addAll(spots);
+
 
       }
 
@@ -187,8 +421,11 @@ class TourismApiService {
     }
 
 
-    return spots;
+
+    return allSpots;
+
 
   }
+
 
 }

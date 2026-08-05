@@ -19,6 +19,7 @@ class VectorGenerator {
       ){
 
 
+
     double nature = 50;
 
     double hidden = 50;
@@ -28,18 +29,42 @@ class VectorGenerator {
 
 
 
+
     // =================================
-    // 🌿 자연 성향
+    // 🌿 1차 분류 (lclsSystm1)
     // =================================
 
 
-    switch(spot.cat1){
+    switch(spot.lclsSystm1){
+
 
 
       // 자연관광
-      case "A01":
+      case "NA":
 
         nature += 30;
+
+        healing += 20;
+
+        break;
+
+
+
+      // 역사관광
+      case "HS":
+
+        hidden += 20;
+
+        healing += 20;
+
+        break;
+
+
+
+      // 체험관광
+      case "EX":
+
+        hidden += 10;
 
         healing += 10;
 
@@ -47,23 +72,15 @@ class VectorGenerator {
 
 
 
-      // 문화관광
-      case "A02":
+      // 레저스포츠
+      case "VE":
 
-        nature -= 10;
-
-        break;
-
-
-
-      // 체험관광
-      case "A03":
-
-        nature += 10;
+        nature += 20;
 
         healing -= 10;
 
         break;
+
 
 
     }
@@ -72,25 +89,22 @@ class VectorGenerator {
 
 
 
+
     // =================================
-    // 🔍 숨은 성향
+    // 🔍 2차 분류 (lclsSystm2)
     // =================================
 
 
-    switch(spot.cat2){
-
-
-      // 자연 속 관광
-      case "A0101":
-
-        hidden += 20;
-
-        break;
+    switch(spot.lclsSystm2){
 
 
 
-      // 역사/문화
-      case "A0201":
+      // 산/산림
+      case "NA01":
+
+        nature += 20;
+
+        healing += 20;
 
         hidden += 10;
 
@@ -98,21 +112,70 @@ class VectorGenerator {
 
 
 
-      // 관광시설
-      case "A0202":
+      // 바다/해변
+      case "NA02":
 
-        hidden -= 10;
+        nature += 30;
+
+        healing += 20;
 
         break;
 
 
 
-      // 체험/레저
-      case "A0203":
+      // 자연휴양
+      case "NA04":
+
+        nature += 20;
+
+        healing += 30;
+
+        hidden += 10;
+
+        break;
+
+
+
+      // 역사
+      case "HS01":
+
+        hidden += 20;
+
+        healing += 10;
+
+        break;
+
+
+
+      // 자연 경관
+      case "HS03":
+
+        nature += 20;
+
+        healing += 20;
 
         hidden += 20;
 
         break;
+
+
+
+      // 체험
+      case "EX07":
+
+        hidden += 20;
+
+        break;
+
+
+
+      // 레저
+      case "VE03":
+
+        nature += 10;
+
+        break;
+
 
 
     }
@@ -121,16 +184,41 @@ class VectorGenerator {
 
 
 
+
+
     // =================================
-    // 🌙 힐링 성향
+    // 🌙 3차 분류 (lclsSystm3)
     // =================================
 
 
-    switch(spot.cat3){
+    switch(spot.lclsSystm3){
 
 
-      // 온천
-      case "A02020300":
+
+      // 산
+      case "NA010100":
+
+        nature += 20;
+
+        healing += 20;
+
+        break;
+
+
+
+      // 폭포
+      case "NA010300":
+
+        nature += 20;
+
+        healing += 20;
+
+        break;
+
+
+
+      // 약수터
+      case "NA010500":
 
         healing += 30;
 
@@ -138,21 +226,19 @@ class VectorGenerator {
 
 
 
-      // 산
-      case "A01010400":
+      // 항구
+      case "NA020700":
 
         nature += 20;
-
-        healing += 20;
 
         break;
 
 
 
       // 해변
-      case "A01010700":
+      case "NA020900":
 
-        nature += 20;
+        nature += 30;
 
         healing += 20;
 
@@ -160,9 +246,24 @@ class VectorGenerator {
 
 
 
-      default:
+      // 온천
+      case "HS030100":
+
+        healing += 40;
 
         break;
+
+
+
+      // 문화재
+      case "HS010900":
+
+        hidden += 20;
+
+        healing += 10;
+
+        break;
+
 
 
     }
@@ -171,16 +272,24 @@ class VectorGenerator {
 
 
 
+
     nature =
+
         nature.clamp(0,100).toDouble();
 
 
+
     hidden =
+
         hidden.clamp(0,100).toDouble();
 
 
+
     healing =
+
         healing.clamp(0,100).toDouble();
+
+
 
 
 
@@ -188,26 +297,46 @@ class VectorGenerator {
 
     return SpotVector(
 
-      spotName: spot.title,
+
+      spotName:
+
+      spot.title,
+
 
 
       regionName:
-      extractRegion(spot.areaName),
+
+      extractRegion(
+
+          spot.address
+
+      ),
 
 
-      nature: nature,
+
+      nature:
+
+      nature,
 
 
-      hidden: hidden,
+
+      hidden:
+
+      hidden,
 
 
-      healing: healing,
+
+      healing:
+
+      healing,
 
 
-      congestion: 0,
+
+      congestion:
+
+      0,
 
     );
-
 
   }
 
@@ -217,28 +346,40 @@ class VectorGenerator {
 
 
 
-  // =================================
-  // 주소 → 지역명 변환
-  // =================================
 
+  // =================================
+  // 주소 → 지역명 추출
+  // =================================
 
   static String extractRegion(
 
-      String address,
+    String address,
 
       ){
 
-
-    final parts =
-
-    address.split(" ");
+      final parts =
+        address.split(" ");
 
 
 
     if(parts.length >= 2){
 
 
-      return "${parts[0]} ${parts[1]}";
+      String sido = parts[0];
+
+      String sigungu = parts[1];
+
+
+
+      if(sido == "서울"){
+
+        sido = "서울특별시";
+
+      }
+
+
+
+      return "$sido $sigungu";
 
 
     }
@@ -269,6 +410,7 @@ class VectorGenerator {
       ){
 
 
+
     Map<String,List<SpotVector>> grouped = {};
 
 
@@ -287,11 +429,12 @@ class VectorGenerator {
       );
 
 
-      grouped[spot.regionName]!
-          .add(spot);
+
+      grouped[spot.regionName]!.add(spot);
 
 
     }
+
 
 
 
@@ -304,9 +447,11 @@ class VectorGenerator {
 
 
 
+
     grouped.forEach(
 
             (regionName, spotList){
+
 
 
           double nature = 0;
@@ -316,6 +461,7 @@ class VectorGenerator {
           double healing = 0;
 
           double congestion = 0;
+
 
 
 
@@ -337,9 +483,14 @@ class VectorGenerator {
 
 
 
+
+
+
           double count =
 
           spotList.length.toDouble();
+
+
 
 
 
@@ -350,29 +501,39 @@ class VectorGenerator {
             RegionVector(
 
 
-              regionName: regionName,
+              regionName:
+
+              regionName,
+
 
 
               nature:
+
               nature / count,
 
 
+
               hidden:
+
               hidden / count,
 
 
+
               healing:
+
               healing / count,
 
 
+
               congestion:
+
               congestion / count,
 
 
             ),
 
-
           );
+
 
 
 
@@ -388,10 +549,8 @@ class VectorGenerator {
     return regions;
 
 
-  }
 
-
-
+}
 
 
 }
