@@ -3,28 +3,41 @@ import '../widgets/bottom_navigation.dart';
 import '../services/kakao_auth_service.dart';
 
 
+
 class OnboardingScreen extends StatelessWidget {
+
+
   const OnboardingScreen({super.key});
+
 
 
   @override
   Widget build(BuildContext context) {
+
+
     return Scaffold(
+
 
       body: SafeArea(
 
+
         child: Center(
+
 
           child: Column(
 
+
             mainAxisAlignment: MainAxisAlignment.center,
+
 
             children: [
 
-              // 이미지 들어갈 자리 (나중에 교체)
+
+
               const SizedBox(
                 height: 180,
               ),
+
 
 
               const Text(
@@ -32,12 +45,15 @@ class OnboardingScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 48,
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 2,
                 ),
               ),
 
 
-              const SizedBox(height: 20),
+
+              const SizedBox(
+                height: 20,
+              ),
+
 
 
               const Text(
@@ -45,88 +61,171 @@ class OnboardingScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 20,
-                  height: 1.5,
                 ),
               ),
 
 
-              const SizedBox(height: 60),
+
+              const SizedBox(
+                height: 60,
+              ),
+
+
 
 
               SizedBox(
 
+
                 width: 280,
+
 
                 height: 50,
 
+
                 child: ElevatedButton(
 
+
                   onPressed: () async {
-                      final user = await KakaoAuthService.login();
-                        if (user != null) {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
+
+
+                    print("카카오 버튼 클릭");
+
+
+
+                    final user =
+                        await KakaoAuthService.login();
+
+
+
+                    print(
+                      "user 결과: $user"
+                    );
+
+
+
+                    if(user != null){
+
+
+
+                      print(
+                        "홈 이동 시작"
+                      );
+
+
+
+                      Navigator.pushReplacement(
+
+
+                        context,
+
+
+                        MaterialPageRoute(
+
+
+                          builder: (context)=>
+
+
                               const BottomNavigation(),
-                              ),
-                              );
-                              }
-                              },
+
+
+                        ),
+
+
+                      );
+
+
+                    }
+
+
+
+                  },
+
+
 
                   child: const Text(
                     "카카오로 시작하기",
-                    style: TextStyle(                
-                      fontSize: 16,
-                    ),
                   ),
+
 
                 ),
 
+
               ),
+
+
 
 
               const SizedBox(height: 15),
 
 
+
+
               SizedBox(
+
 
                 width: 280,
 
+
                 height: 50,
+
 
                 child: ElevatedButton(
 
-                  onPressed: () {
+
+                  onPressed: (){
+
 
                     Navigator.pushReplacement(
+
+
                       context,
+
+
                       MaterialPageRoute(
-                        builder: (context) =>
+
+
+                        builder: (context)=>
+
                             const BottomNavigation(),
+
+
                       ),
+
+
                     );
+
 
                   },
 
+
                   child: const Text(
                     "Apple로 시작하기",
-                    style: TextStyle(
-                      fontSize: 16,
-                    ),
                   ),
+
 
                 ),
 
+
               ),
 
+
+
             ],
+
+
           ),
+
 
         ),
 
+
       ),
 
+
     );
+
+
   }
+
+
 }
