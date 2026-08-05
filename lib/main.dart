@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
+import 'screens/onboarding_screen.dart';
 import 'services/tourism_api_service.dart';
 
 void testApi() async {
@@ -45,7 +46,7 @@ class TravelApp extends StatelessWidget {
       ),
 
       // 앱 시작 화면
-      home: const LoginScreen(),
+      home: const OnboardingScreen(),
     );
   }
 }

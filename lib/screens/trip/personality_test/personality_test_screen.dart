@@ -127,6 +127,7 @@ class _PersonalityTestScreenState
         builder: (context) =>
             ResultScreen(
               result: result,
+              scoreManager: scoreManager,
             ),
 
       ),
