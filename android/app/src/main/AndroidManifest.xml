@@ -6,6 +6,13 @@
         android:icon="@mipmap/ic_launcher">
 
 
+        <!-- Kakao SDK App Key -->
+        <meta-data
+            android:name="com.kakao.sdk.AppKey"
+            android:value="f5c2a76b9629d32baa7816b9320e1453"/>
+
+
+        <!-- Main Flutter Activity -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -34,6 +41,7 @@
         </activity>
 
 
+        <!-- Flutter embedding -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
