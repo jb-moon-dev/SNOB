@@ -10,7 +10,6 @@ class MapScreen extends StatefulWidget {
 
   const MapScreen({super.key});
 
-
   @override
   State<MapScreen> createState() => _MapScreenState();
 
@@ -18,7 +17,7 @@ class MapScreen extends StatefulWidget {
 
 
 
-class _MapScreenState extends State<MapScreen>{
+class _MapScreenState extends State<MapScreen> {
 
 
   KakaoMapController? mapController;
@@ -29,7 +28,7 @@ class _MapScreenState extends State<MapScreen>{
 
 
   @override
-  void initState(){
+  void initState() {
 
     super.initState();
 
@@ -39,8 +38,10 @@ class _MapScreenState extends State<MapScreen>{
 
 
 
-  Future<void> loadMapData() async{
+  Future<void> loadMapData() async {
 
+
+    // GeoJSON 불러오기
 
     final String data =
         await rootBundle.loadString(
@@ -48,23 +49,27 @@ class _MapScreenState extends State<MapScreen>{
         );
 
 
-    final jsonData=jsonDecode(data);
+    final jsonData = jsonDecode(data);
 
 
 
-    List<Polygon> temp=[];
+    List<Polygon> temp = [];
 
 
 
-    for(var feature in jsonData["features"]){
+    for(var feature in jsonData["features"]) {
 
 
-      var name =
-          feature["properties"]["SIG_KOR_NM"];
+      // 시군구 이름
+
+      String name =
+          feature["properties"]["SIGUNGU_NM"];
 
 
 
       // 임시 혼잡도
+      // 나중에 csv 연결
+
       double score =
           generateScore(name);
 
@@ -80,18 +85,25 @@ class _MapScreenState extends State<MapScreen>{
 
 
 
-      List<LatLng> points=[];
+      List<LatLng> points = [];
 
 
 
-      for(var point in coordinates){
+      for(var point in coordinates) {
+
 
         points.add(
+
           LatLng(
+
             point[1],
+
             point[0],
+
           )
+
         );
+
 
       }
 
@@ -100,12 +112,19 @@ class _MapScreenState extends State<MapScreen>{
       temp.add(
 
         Polygon(
-          polygonId:name,
-          points:points,
-          strokeColor:Colors.white,
-          strokeWidth:1,
-          fillColor:color,
-          fillOpacity:0.5,
+
+          polygonId: name,
+
+          points: points,
+
+          strokeColor: Colors.white,
+
+          strokeWidth: 1,
+
+          fillColor: color,
+
+          fillOpacity: 0.5,
+
         )
 
       );
@@ -115,50 +134,62 @@ class _MapScreenState extends State<MapScreen>{
 
 
 
-    setState((){
+    setState(() {
 
-      polygons=temp;
+      polygons = temp;
 
     });
 
 
-
   }
 
 
 
 
 
-  double generateScore(String name){
 
-    // 나중에 SNOB 혼잡도 모델 연결
+  // ---------------------------------
+  // 임시 점수 생성
+  // 나중에 congestion_final.csv 연결
+  // ---------------------------------
+
+  double generateScore(String name) {
+
 
     return
-        name.hashCode % 100 / 100;
+        (name.hashCode % 100) / 100;
+
 
   }
 
 
 
 
-  Color getColor(double score){
+
+  Color getColor(double score) {
 
 
-    if(score <0.33){
+    if(score < 0.33) {
+
 
       return Colors.green;
 
+
     }
 
-    else if(score <0.66){
+    else if(score < 0.66) {
+
 
       return Colors.orange;
 
+
     }
 
-    else{
+    else {
+
 
       return Colors.red;
+
 
     }
 
@@ -170,43 +201,51 @@ class _MapScreenState extends State<MapScreen>{
 
 
   @override
-  Widget build(BuildContext context){
+  Widget build(BuildContext context) {
 
 
     return Scaffold(
 
 
-      appBar:AppBar(
+      appBar: AppBar(
+
         title:
-        const Text("혼잡도 지도"),
+        const Text(
+          "혼잡도 지도"
+        ),
+
       ),
 
 
 
-      body:KakaoMap(
+      body: KakaoMap(
 
-        onMapCreated:(controller){
 
-          mapController=controller;
+        onMapCreated: (controller) {
+
+
+          mapController = controller;
+
 
         },
 
 
         center:
+
         LatLng(
+
           36.5,
+
           127.8,
+
         ),
 
 
-        polygons:polygons,
 
-
-        zoomLevel:13,
+        polygons: polygons,
 
 
       ),
-
 
 
     );
