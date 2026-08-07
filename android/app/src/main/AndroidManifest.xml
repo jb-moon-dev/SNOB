@@ -7,7 +7,8 @@
         android:name="${applicationName}"
         android:label="snob"
         android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true"> <!-- HTTP 통신 허용 (카카오맵 서브 리소스용) -->
+        android:usesCleartextTraffic="true"
+        android:largeHeap="true"> <!-- 대용량 메모리 할당 옵션 추가 -->
 
         <!-- Kakao SDK App Key (Native App Key) -->
         <meta-data
