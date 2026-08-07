@@ -19,7 +19,7 @@ dependencies:
   kakao_flutter_sdk_user: ^2.0.0+1
 
   # Kakao Map
-  kakao_map_plugin: ^0.3.7
+  kakao_map_plugin: 0.3.7
 
   # Secure Token Storage
   flutter_secure_storage: ^9.2.2

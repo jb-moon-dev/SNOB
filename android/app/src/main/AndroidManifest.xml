@@ -1,16 +1,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- 인터넷 권한 필수 (카카오 지도 JS SDK 및 지도 타일 로드용) -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:name="${applicationName}"
         android:label="snob"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true"> <!-- HTTP 통신 허용 (카카오맵 서브 리소스용) -->
 
-
-        <!-- Kakao SDK App Key -->
+        <!-- Kakao SDK App Key (Native App Key) -->
         <meta-data
             android:name="com.kakao.sdk.AppKey"
             android:value="f5c2a76b9629d32baa7816b9320e1453"/>
-
 
         <!-- Main Flutter Activity -->
         <activity
@@ -23,29 +25,29 @@
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
 
-
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme"/>
 
-
             <intent-filter>
-
                 <action android:name="android.intent.action.MAIN"/>
-
                 <category android:name="android.intent.category.LAUNCHER"/>
-
             </intent-filter>
 
+            <!-- 카카오 로그인 / SDK 커스텀 URL 스킴 (kakao + Native App Key) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:host="oauth" android:scheme="kakaof5c2a76b9629d32baa7816b9320e1453" />
+            </intent-filter>
 
         </activity>
-
 
         <!-- Flutter embedding -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
-
 
     </application>
 
