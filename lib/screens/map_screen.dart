@@ -772,7 +772,7 @@ class _MapScreenState extends State<MapScreen> {
               // 기존보다 훨씬 투명하게 설정
               fillOpacity:
                   data != null
-                      ? 0.20
+                      ? 0.10
                       : 0.10,
             ),
           );
