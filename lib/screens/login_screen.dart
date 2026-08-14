@@ -24,7 +24,7 @@ class LoginScreen extends StatelessWidget {
 
 
             const Text(
-              'Travel Balance',
+              'SNOB',
               style: TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,

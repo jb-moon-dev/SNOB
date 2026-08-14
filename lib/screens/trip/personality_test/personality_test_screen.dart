@@ -75,11 +75,13 @@ class _PersonalityTestScreenState
       currentQuestion++;
 
 
+
       shuffledAnswers =
           List<Answer>.from(
             shuffledQuestions[currentQuestion].answers,
           )
             ..shuffle(Random());
+
 
 
     });
@@ -91,50 +93,100 @@ class _PersonalityTestScreenState
 
 
 
+
+
   void finishTest() {
 
 
+
     // 점수를 기반으로 27개 유형 key 생성
+
     final type =
         TypeMatcher.match(
 
+
           city: scoreManager.city,
+
           nature: scoreManager.nature,
 
+
+
           famous: scoreManager.famous,
+
           hidden: scoreManager.hidden,
 
+
+
           active: scoreManager.active,
+
           healing: scoreManager.healing,
+
+
 
         );
 
 
 
+
+
+
+
     // 유형 데이터 가져오기
+
     final result =
         ResultRepository.getResult(type);
 
 
 
 
+
+
+
+
     Navigator.push(
+
 
       context,
 
+
       MaterialPageRoute(
 
+
+
         builder: (context) =>
+
             ResultScreen(
+
+
+
               result: result,
+
+
+
+              // ⭐ 추가
+              // 심리테스트 결과 점수 전달
+
               scoreManager: scoreManager,
+
+
+
             ),
+
+
 
       ),
 
+
+
     );
 
+
+
   }
+
+
+
+
 
 
 
@@ -152,28 +204,46 @@ class _PersonalityTestScreenState
     return Scaffold(
 
 
+
       appBar: AppBar(
 
+
         title:
-        const Text("여행 성향 테스트"),
+        const Text(
+
+          "여행 성향 테스트",
+
+        ),
+
 
       ),
 
 
 
 
+
+
       body: Padding(
 
+
+
         padding:
+
         const EdgeInsets.all(20),
+
+
 
 
 
         child: Column(
 
 
+
           crossAxisAlignment:
+
           CrossAxisAlignment.start,
+
+
 
 
 
@@ -181,22 +251,34 @@ class _PersonalityTestScreenState
 
 
 
+
+
             Text(
+
 
               "${currentQuestion + 1} / ${shuffledQuestions.length}",
 
 
               style:
+
               const TextStyle(
+
 
                 fontSize:18,
 
+
                 fontWeight:
+
                 FontWeight.bold,
+
 
               ),
 
+
+
             ),
+
+
 
 
 
@@ -208,22 +290,34 @@ class _PersonalityTestScreenState
 
 
 
+
+
             Text(
+
 
               question.question,
 
 
               style:
+
               const TextStyle(
+
 
                 fontSize:24,
 
+
                 fontWeight:
+
                 FontWeight.bold,
+
 
               ),
 
+
+
             ),
+
+
 
 
 
@@ -235,64 +329,119 @@ class _PersonalityTestScreenState
 
 
 
+
+
             Column(
+
 
 
               children:
 
+
+
               shuffledAnswers.map((answer){
+
+
 
 
 
                 return Padding(
 
 
+
+
+
                   padding:
+
                   const EdgeInsets.only(
+
                     bottom:15,
+
                   ),
 
 
 
 
-                  child:SizedBox(
+
+
+
+                  child:
+
+                  SizedBox(
+
 
 
                     width:
+
                     double.infinity,
 
 
 
 
+
+
+
                     child:
+
                     ElevatedButton(
 
 
-                      onPressed: (){
+
+
+
+                      onPressed:(){
+
+
+
+
 
 
                         // 선택한 답변 점수 추가
+
                         scoreManager.addScore(answer);
 
 
 
 
+
+
+
+
                         if(currentQuestion ==
+
                             shuffledQuestions.length - 1){
+
+
+
+
 
 
                           finishTest();
 
 
 
+
+
+
+
                         } else {
+
+
+
 
 
                           nextQuestion();
 
 
 
+
+
+
+
                         }
+
+
+
 
 
                       },
@@ -300,12 +449,27 @@ class _PersonalityTestScreenState
 
 
 
+
+
+
+
                       child:
+
+
+
                       Text(
+
+
 
                         answer.text,
 
+
+
                       ),
+
+
+
+
 
 
 
@@ -313,30 +477,57 @@ class _PersonalityTestScreenState
 
 
 
+
+
+
                   ),
+
+
+
+
 
 
 
                 );
 
 
+
+
+
               }).toList(),
+
+
+
+
 
 
 
             ),
 
 
+
+
+
           ],
+
+
+
 
 
         ),
 
 
+
+
+
       ),
 
 
+
+
+
     );
+
 
 
   }
