@@ -1,28 +1,23 @@
-import 'package:snob/services/center_spot_service.dart';
-import 'package:snob/services/related_spot_service.dart';
-
-import 'congestion_service.dart';
-
 import 'package:flutter/material.dart';
 
-import 'course_recommender.dart';
-import 'models/course_result.dart';
-
-// 기존 SNOB 성향 벡터
+import 'models/course_item.dart';
 import 'package:snob/snob/user_vector.dart';
 
 class CourseScreen extends StatefulWidget {
+  // 사용자의 여행 성향
   final UserVector userVector;
-  final String areaCd;
-  final String sigunguCd;
-  final String baseYm;
+
+  // 현재 추천된 지역 이름
+  final String regionName;
+
+  // 중심 관광지 목록
+  final List<CourseItem> centerSpots;
 
   const CourseScreen({
     super.key,
     required this.userVector,
-    required this.areaCd,
-    required this.sigunguCd,
-    required this.baseYm,
+    required this.regionName,
+    required this.centerSpots,
   });
 
   @override
@@ -30,75 +25,30 @@ class CourseScreen extends StatefulWidget {
 }
 
 class _CourseScreenState extends State<CourseScreen> {
-  CourseResult? courseResult;
+  late List<CourseItem> sortedSpots;
 
-  bool isLoading = true;
-  String? errorMessage;
+  CourseItem? selectedSpot;
 
   @override
   void initState() {
     super.initState();
-    _loadCourse();
+
+    // 중심 관광지 최대 50개
+    sortedSpots =
+        List<CourseItem>.from(widget.centerSpots.take(50));
+
+    // SNOB 지수가 낮은 순서
+    sortedSpots.sort(
+      (a, b) => a.snobIndex.compareTo(b.snobIndex),
+    );
   }
-
-  // ============================================================
-  // 코스 추천 실행
-  // ============================================================
-
-  Future<void> _loadCourse() async {
-    try {
-      setState(() {
-        isLoading = true;
-        errorMessage = null;
-      });
-
-      // --------------------------------------------------------
-      // 서비스 생성
-      // --------------------------------------------------------
-
-      final recommender = CourseRecommender(
-        centerSpotService: CenterSpotService(),
-        relatedSpotService: RelatedSpotService(),
-        congestionService: CongestionService(),
-      );
-
-      // --------------------------------------------------------
-      // 코스 추천
-      // --------------------------------------------------------
-
-      final result = await recommender.recommendCourse(
-        userVector: widget.userVector,
-        areaCd: widget.areaCd,
-        sigunguCd: widget.sigunguCd,
-        baseYm: widget.baseYm,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        courseResult = result;
-        isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        isLoading = false;
-        errorMessage = e.toString();
-      });
-    }
-  }
-
-  // ============================================================
-  // BUILD
-  // ============================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          '추천 여행 코스',
+          '추천 여행지',
           style: TextStyle(
             fontWeight: FontWeight.bold,
           ),
@@ -106,249 +56,380 @@ class _CourseScreenState extends State<CourseScreen> {
         centerTitle: true,
       ),
 
-      body: _buildBody(),
+      body: sortedSpots.isEmpty
+          ? _buildEmpty()
+          : _buildSpotList(),
     );
   }
 
   // ============================================================
-  // BODY
+  // 관광지 목록
   // ============================================================
 
-  Widget _buildBody() {
-    // ----------------------------------------------------------
-    // 로딩
-    // ----------------------------------------------------------
+  Widget _buildSpotList() {
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        // --------------------------------------------------------
+        // 지역
+        // --------------------------------------------------------
 
-    if (isLoading) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text(
-              '여행 코스를 찾고 있어요...',
-              style: TextStyle(
-                fontSize: 16,
+        Text(
+          widget.regionName,
+          style: const TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        const Text(
+          '당신의 여행 성향과 SNOB 지수를 기준으로\n'
+          '상대적으로 여유로운 관광지를 추천해요.',
+          style: TextStyle(
+            color: Colors.grey,
+            fontSize: 14,
+            height: 1.5,
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        // --------------------------------------------------------
+        // 안내
+        // --------------------------------------------------------
+
+        Container(
+          padding: const EdgeInsets.all(16),
+
+          decoration: BoxDecoration(
+            color: Colors.green.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Colors.green.withOpacity(0.2),
+            ),
+          ),
+
+          child: const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.eco_outlined,
+                color: Colors.green,
+              ),
+
+              SizedBox(width: 12),
+
+              Expanded(
+                child: Text(
+                  'SNOB 지수가 낮을수록 관광객이 몰리는 정도가 낮고,\n'
+                  '여행 성향에 더 적합한 관광지예요.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 28),
+
+        Text(
+          '추천 관광지 ${sortedSpots.length}곳',
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // --------------------------------------------------------
+        // 관광지 카드
+        // --------------------------------------------------------
+
+        ...List.generate(
+          sortedSpots.length,
+          (index) {
+            final spot = sortedSpots[index];
+
+            return _buildSpotCard(
+              spot: spot,
+              rank: index + 1,
+            );
+          },
+        ),
+
+        // --------------------------------------------------------
+        // 선택한 관광지
+        // --------------------------------------------------------
+
+        if (selectedSpot != null) ...[
+          const SizedBox(height: 24),
+
+          _buildSelectedSpot(),
+
+          const SizedBox(height: 20),
+
+          ElevatedButton(
+            onPressed: () {
+              // TODO:
+              // 선택한 관광지를 기준으로
+              // 대체 관광지 API 연결
+            },
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(
+                double.infinity,
+                52,
               ),
             ),
-            SizedBox(height: 8),
-            Text(
-              '혼잡도와 여행 성향을 분석하고 있습니다.',
+            child: const Text(
+              '대체 관광지 보기',
               style: TextStyle(
-                color: Colors.grey,
-                fontSize: 13,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+
+        const SizedBox(height: 30),
+      ],
+    );
+  }
+
+  // ============================================================
+  // 관광지 카드
+  // ============================================================
+
+  Widget _buildSpotCard({
+    required CourseItem spot,
+    required int rank,
+  }) {
+    final bool isSelected =
+        selectedSpot?.contentId == spot.contentId;
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          selectedSpot = spot;
+        });
+      },
+
+      child: Container(
+        margin: const EdgeInsets.only(
+          bottom: 14,
+        ),
+
+        padding: const EdgeInsets.all(18),
+
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Colors.green.withOpacity(0.08)
+              : Colors.white,
+
+          borderRadius:
+              BorderRadius.circular(18),
+
+          border: Border.all(
+            color: isSelected
+                ? Colors.green
+                : Colors.grey.shade200,
+
+            width: isSelected ? 2 : 1,
+          ),
+
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 7,
+              offset: Offset(0, 3),
+            ),
+          ],
+        ),
+
+        child: Row(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+
+          children: [
+            // ----------------------------------------------------
+            // 순위
+            // ----------------------------------------------------
+
+            Container(
+              width: 38,
+              height: 38,
+
+              decoration: BoxDecoration(
+                color: rank <= 3
+                    ? Colors.green
+                    : Colors.grey.shade200,
+
+                shape: BoxShape.circle,
+              ),
+
+              alignment: Alignment.center,
+
+              child: Text(
+                '$rank',
+
+                style: TextStyle(
+                  fontWeight:
+                      FontWeight.bold,
+
+                  color: rank <= 3
+                      ? Colors.white
+                      : Colors.black87,
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 14),
+
+            // ----------------------------------------------------
+            // 관광지 정보
+            // ----------------------------------------------------
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+
+                children: [
+                  Text(
+                    spot.title.isEmpty
+                        ? '관광지 정보 없음'
+                        : spot.title,
+
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 7),
+
+                  Text(
+                    spot.address.isEmpty
+                        ? '주소 정보 없음'
+                        : spot.address,
+
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey,
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // ------------------------------------------------
+                  // SNOB 지수
+                  // ------------------------------------------------
+
+                  Row(
+                    children: [
+                      const Text(
+                        'SNOB 지수 ',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+
+                      Text(
+                        spot.snobIndex
+                            .toStringAsFixed(1),
+
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight:
+                              FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ],
         ),
-      );
-    }
-
-    // ----------------------------------------------------------
-    // 오류
-    // ----------------------------------------------------------
-
-    if (errorMessage != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.error_outline,
-                size: 50,
-                color: Colors.redAccent,
-              ),
-
-              const SizedBox(height: 16),
-
-              const Text(
-                '코스를 불러오지 못했어요.',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              Text(
-                errorMessage!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.grey,
-                  fontSize: 12,
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              ElevatedButton(
-                onPressed: _loadCourse,
-                child: const Text('다시 시도'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // ----------------------------------------------------------
-    // 추천 결과 없음
-    // ----------------------------------------------------------
-
-    if (courseResult == null ||
-        courseResult!.course.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.travel_explore,
-                size: 60,
-                color: Colors.grey,
-              ),
-
-              const SizedBox(height: 16),
-
-              const Text(
-                '추천할 수 있는 코스를 찾지 못했어요.',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              const Text(
-                '다른 지역을 선택하거나\n잠시 후 다시 시도해주세요.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.grey,
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              ElevatedButton(
-                onPressed: _loadCourse,
-                child: const Text('다시 추천받기'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // ----------------------------------------------------------
-    // 정상 결과
-    // ----------------------------------------------------------
-
-    return _buildCourseResult();
+      ),
+    );
   }
 
   // ============================================================
-  // 추천 코스 결과
+  // 선택된 관광지
   // ============================================================
 
-  Widget _buildCourseResult() {
-    final result = courseResult!;
+  Widget _buildSelectedSpot() {
+    final spot = selectedSpot!;
 
-    return RefreshIndicator(
-      onRefresh: _loadCourse,
+    return Container(
+      padding: const EdgeInsets.all(20),
 
-      child: ListView(
-        padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+
+        borderRadius:
+            BorderRadius.circular(18),
+
+        border: Border.all(
+          color: Colors.grey.shade300,
+        ),
+      ),
+
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
 
         children: [
-          // ----------------------------------------------------
-          // 지역
-          // ----------------------------------------------------
+          const Text(
+            '선택한 관광지',
+
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey,
+            ),
+          ),
+
+          const SizedBox(height: 8),
 
           Text(
-            result.regionName,
+            spot.title,
+
             style: const TextStyle(
-              fontSize: 28,
+              fontSize: 22,
               fontWeight: FontWeight.bold,
             ),
           ),
 
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
 
-          const Text(
-            '당신의 여행 성향에 맞춰 구성한 코스예요.',
-            style: TextStyle(
+          Text(
+            spot.address,
+
+            style: const TextStyle(
+              fontSize: 13,
               color: Colors.grey,
-              fontSize: 14,
             ),
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 12),
 
-          // ----------------------------------------------------
-          // 분산 여행 안내
-          // ----------------------------------------------------
+          Text(
+            'SNOB 지수 ${spot.snobIndex.toStringAsFixed(1)}',
 
-          Container(
-            padding: const EdgeInsets.all(16),
-
-            decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.green.withOpacity(0.2),
-              ),
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.green,
             ),
-
-            child: const Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.eco_outlined,
-                  color: Colors.green,
-                ),
-
-                SizedBox(width: 12),
-
-                Expanded(
-                  child: Text(
-                    '혼잡도가 높은 관광지는 피하고,\n'
-                    '비슷한 여행 만족도를 제공하면서 '
-                    '상대적으로 여유로운 관광지를 중심으로 코스를 구성했어요.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.5,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 28),
-
-          // ----------------------------------------------------
-          // 코스
-          // ----------------------------------------------------
-
-          ...List.generate(
-            result.course.length,
-            (index) {
-              final spot = result.course[index];
-
-              return _buildCourseItem(
-                index: index,
-                title: spot.title,
-                address: spot.address,
-                isLast:
-                    index == result.course.length - 1,
-              );
-            },
           ),
         ],
       ),
@@ -356,119 +437,52 @@ class _CourseScreenState extends State<CourseScreen> {
   }
 
   // ============================================================
-  // 코스 아이템
+  // 관광지가 없을 때
   // ============================================================
 
-  Widget _buildCourseItem({
-    required int index,
-    required String title,
-    required String address,
-    required bool isLast,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // ------------------------------------------------------
-        // 번호
-        // ------------------------------------------------------
+  Widget _buildEmpty() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
 
-        Column(
+        child: Column(
+          mainAxisAlignment:
+              MainAxisAlignment.center,
+
           children: [
-            Container(
-              width: 40,
-              height: 40,
+            const Icon(
+              Icons.travel_explore,
+              size: 60,
+              color: Colors.grey,
+            ),
 
-              decoration: BoxDecoration(
-                color: index == 0
-                    ? Colors.blueAccent
-                    : Colors.grey.shade200,
-                shape: BoxShape.circle,
-              ),
+            const SizedBox(height: 18),
 
-              alignment: Alignment.center,
+            const Text(
+              '추천할 관광지를 찾지 못했어요.',
 
-              child: Text(
-                '${index + 1}',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: index == 0
-                      ? Colors.white
-                      : Colors.black87,
-                ),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight:
+                    FontWeight.bold,
               ),
             ),
 
-            if (!isLast)
-              Container(
-                width: 2,
-                height: 70,
-                color: Colors.grey.shade300,
+            const SizedBox(height: 8),
+
+            const Text(
+              '잠시 후 다시 시도해주세요.',
+
+              textAlign:
+                  TextAlign.center,
+
+              style: TextStyle(
+                color: Colors.grey,
               ),
+            ),
           ],
         ),
-
-        const SizedBox(width: 16),
-
-        // ------------------------------------------------------
-        // 관광지 정보
-        // ------------------------------------------------------
-
-        Expanded(
-          child: Container(
-            margin: const EdgeInsets.only(
-              bottom: 18,
-            ),
-
-            padding: const EdgeInsets.all(16),
-
-            decoration: BoxDecoration(
-              color: Colors.white,
-
-              borderRadius:
-                  BorderRadius.circular(16),
-
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 8,
-                  offset: Offset(0, 3),
-                ),
-              ],
-            ),
-
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-
-              children: [
-                Text(
-                  title.isEmpty
-                      ? '관광지 정보 없음'
-                      : title,
-
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 8),
-
-                Text(
-                  address.isEmpty
-                      ? '주소 정보 없음'
-                      : address,
-
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
