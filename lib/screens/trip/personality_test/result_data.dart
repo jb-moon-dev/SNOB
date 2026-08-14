@@ -202,7 +202,7 @@ class ResultRepository {
     return results[key] ??
         const ResultData(
           title: "알 수 없는 여행자",
-          description: "여행 성향을 분석할 수 없습니다.",
+          description: "당신의 여행 성향을 분석할 수 없습니다.",
           keyword: "",
         );
   }
