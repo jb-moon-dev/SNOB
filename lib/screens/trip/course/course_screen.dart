@@ -104,10 +104,10 @@ class _CourseScreenState extends State<CourseScreen> {
           padding: const EdgeInsets.all(16),
 
           decoration: BoxDecoration(
-            color: Colors.green.withOpacity(0.08),
+            color: Colors.green.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: Colors.green.withOpacity(0.2),
+              color: Colors.green.withValues(alpha: 0.2),
             ),
           ),
 
@@ -228,7 +228,7 @@ class _CourseScreenState extends State<CourseScreen> {
 
         decoration: BoxDecoration(
           color: isSelected
-              ? Colors.green.withOpacity(0.08)
+              ? Colors.green.withValues(alpha: 0.08)
               : Colors.white,
 
           borderRadius:

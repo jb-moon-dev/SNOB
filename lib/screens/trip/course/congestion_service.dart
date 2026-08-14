@@ -18,8 +18,8 @@ class CourseCongestionData {
 }
 
 class CongestionService {
-  Map<String, CourseCongestionData> _dataByCode = {};
-  Map<String, CourseCongestionData> _dataByName = {};
+  final Map<String, CourseCongestionData> _dataByCode = {};
+  final Map<String, CourseCongestionData> _dataByName = {};
 
   Future<void> loadData() async {
     final csvString =

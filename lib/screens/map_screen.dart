@@ -1379,8 +1379,8 @@ class _MapScreenState extends State<MapScreen> {
       decoration:
           BoxDecoration(
         color:
-            Colors.white.withOpacity(
-          0.94,
+            Colors.white.withValues(
+          alpha: 0.94,
         ),
 
         borderRadius:
