@@ -10,6 +10,9 @@ import 'type_matcher.dart';
 import 'result_data.dart';
 import 'result_screen.dart';
 
+import 'package:/snob/snob/user_vector.dart';
+import 'package:/snob/snob/region_vector.dart';
+import 'package:/snob/snob/recommendation_engine.dart';
 
 
 class PersonalityTestScreen extends StatefulWidget {
@@ -97,91 +100,46 @@ class _PersonalityTestScreenState
 
   void finishTest() {
 
-
-
-    // 점수를 기반으로 27개 유형 key 생성
-
-    final type =
-        TypeMatcher.match(
-
-
-          city: scoreManager.city,
-
-          nature: scoreManager.nature,
-
-
-
-          famous: scoreManager.famous,
-
-          hidden: scoreManager.hidden,
-
-
-
-          active: scoreManager.active,
-
-          healing: scoreManager.healing,
-
-
-
-        );
-
-
-
-
-
-
-
-    // 유형 데이터 가져오기
-
-    final result =
-        ResultRepository.getResult(type);
-
-
-
-
-
-
-
-
-    Navigator.push(
-
-
-      context,
-
-
-      MaterialPageRoute(
-
-
-
-        builder: (context) =>
-
-            ResultScreen(
-
-
-
-              result: result,
-
-
-
-              // ⭐ 추가
-              // 심리테스트 결과 점수 전달
-
-              scoreManager: scoreManager,
-
-
-
-            ),
-
-
-
-      ),
-
-
-
+    // 1. 27개 유형 key 생성
+    final type = TypeMatcher.match(
+      city: scoreManager.city,
+      nature: scoreManager.nature,
+      famous: scoreManager.famous,
+      hidden: scoreManager.hidden,
+      active: scoreManager.active,
+      healing: scoreManager.healing,
     );
 
+    // 2. 유형 데이터
+    final result = ResultRepository.getResult(type);
 
+    // 3. 사용자 성향 벡터
+    final userVector = UserVector.fromScore(
+      cityScore: scoreManager.city,
+      natureScore: scoreManager.nature,
+      famousScore: scoreManager.famous,
+      hiddenScore: scoreManager.hidden,
+      activeScore: scoreManager.active,
+      healingScore: scoreManager.healing,
+    );
 
+    // 4. RecommendationEngine이 고른 지역
+    final recommendedRegion =
+        RecommendationEngine.recommendRandomRegion(
+          userVector,
+          regions,
+        );
+
+    // 5. 결과 화면
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ResultScreen(
+          personalityType: result.title,
+          recommendedRegion: recommendedRegion.regionName,
+        ),
+      ),
+    );
   }
 
 

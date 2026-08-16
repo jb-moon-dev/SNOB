@@ -26,6 +26,8 @@ dependencies:
   flutter_map: ^8.3.1
   latlong2: ^0.10.1
 
+  excel: ^4.0.6
+
 
 dev_dependencies:
   flutter_test:
@@ -40,3 +42,4 @@ flutter:
   assets:
     - assets/map/sigungu_congestion.geojson
     - congestion_final.csv # 또는 위치한 경로
+    - data/region_codes.xlsx

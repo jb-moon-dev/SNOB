@@ -1,41 +1,55 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-class CenterSpotService {
+class CongestionService {
   static const String baseUrl =
-      'https://apis.data.go.kr/B551011/LocgoHubTarService1';
+      'https://apis.data.go.kr/B551011/TatsCnctrRateService';
 
   static const String serviceKey =
       'cbea666b85656aa336898b2d32bfee6f7d6fdad29e7c840109a41b9bf449c8a9';
 
-  Future<List<Map<String, dynamic>>> getCenterSpots({
-    required int pageNo,
-    required int numOfRows,
-    required String mobileOS,
-    required String mobileApp,
-    required String baseYm,
+  /// 관광지 집중률 조회
+  ///
+  /// 반환:
+  /// [
+  ///   {
+  ///     'tAtsNm': '해운대해수욕장',
+  ///     'congestion': 82.4,
+  ///     ...
+  ///   }
+  /// ]
+  Future<List<Map<String, dynamic>>> getCongestion({
     required String areaCd,
     required String signguCd,
+    String? touristSpotName,
+    int pageNo = 1,
+    int numOfRows = 30,
   }) async {
+    final queryParameters = <String, String>{
+      'serviceKey': serviceKey,
+      'pageNo': pageNo.toString(),
+      'numOfRows': numOfRows.toString(),
+      'MobileOS': 'ETC',
+      'MobileApp': 'SNOB',
+      'areaCd': areaCd,
+      'signguCd': signguCd,
+      '_type': 'json',
+    };
+
+    // 특정 관광지만 조회할 경우
+    if (touristSpotName != null && touristSpotName.isNotEmpty) {
+      queryParameters['tAtsNm'] = touristSpotName;
+    }
+
     final uri = Uri.parse(
-      '$baseUrl/areaBasedList1',
+      '$baseUrl/tatsCnctrRatedList',
     ).replace(
-      queryParameters: {
-        'serviceKey': serviceKey,
-        'pageNo': pageNo.toString(),
-        'numOfRows': numOfRows.toString(),
-        'MobileOS': mobileOS,
-        'MobileApp': mobileApp,
-        'baseYm': baseYm,
-        'areaCd': areaCd,
-        'signguCd': signguCd,
-        '_type': 'json',
-      },
+      queryParameters: queryParameters,
     );
 
     print('');
     print('========================================');
-    print('CENTER SPOT API');
+    print('CONGESTION API');
     print(uri);
     print('========================================');
 
@@ -48,15 +62,12 @@ class CenterSpotService {
 
     if (response.statusCode != 200) {
       throw Exception(
-        '중심 관광지 API 호출 실패: ${response.statusCode}',
+        '관광지 집중률 API 호출 실패: ${response.statusCode}',
       );
     }
 
     final decoded = jsonDecode(response.body);
 
-    print('decoded type: ${decoded.runtimeType}');
-
-    // response
     final responseData = decoded['response'];
 
     if (responseData is! Map) {
@@ -64,7 +75,6 @@ class CenterSpotService {
       return [];
     }
 
-    // body
     final body = responseData['body'];
 
     if (body is! Map) {
@@ -72,13 +82,12 @@ class CenterSpotService {
       return [];
     }
 
-    // items
     final itemsData = body['items'];
 
     print('items type: ${itemsData.runtimeType}');
     print('items: $itemsData');
 
-    // 관광지가 없는 경우
+    // 데이터가 없는 경우
     if (itemsData == null || itemsData == '') {
       return [];
     }
@@ -88,14 +97,12 @@ class CenterSpotService {
       return [];
     }
 
-    // item
     final itemData = itemsData['item'];
 
     if (itemData == null || itemData == '') {
       return [];
     }
 
-    // 여러 관광지
     if (itemData is List) {
       return itemData
           .map(
@@ -104,7 +111,6 @@ class CenterSpotService {
           .toList();
     }
 
-    // 관광지가 1개일 경우
     if (itemData is Map) {
       return [
         Map<String, dynamic>.from(itemData),
