@@ -111,6 +111,7 @@ String _normalizeName(String name) {
 // ============================================================
 
 ParseResult _parseInBackground(ParseParams params) {
+
   // ----------------------------------------------------------
   // CSV
   // ----------------------------------------------------------
@@ -122,32 +123,56 @@ ParseResult _parseInBackground(ParseParams params) {
   Map<String, CongestionData> tempCsvMapByCd = {};
 
   for (int i = 1; i < lines.length; i++) {
-    if (lines[i].trim().isEmpty) continue;
 
-    List<String> cols = lines[i].split(',');
+    if (lines[i].trim().isEmpty) {
+      continue;
+    }
 
-    if (cols.length < 8) continue;
+    List<String> cols =
+        lines[i].split(',');
 
-    String cd = cols[0].trim();
-    String rawNm = cols[1].trim();
+    if (cols.length < 8) {
+      continue;
+    }
 
-    String normalizedNm = _normalizeName(rawNm);
+    String cd =
+        cols[0].trim();
+
+    String rawNm =
+        cols[1].trim();
+
+    String normalizedNm =
+        _normalizeName(rawNm);
 
     double currentVisitor =
-        double.tryParse(cols[2].trim()) ?? 0;
+        double.tryParse(
+          cols[2].trim(),
+        ) ??
+        0;
 
     double normalVisitor =
-        double.tryParse(cols[3].trim()) ?? 0;
+        double.tryParse(
+          cols[3].trim(),
+        ) ??
+        0;
 
     double normalCompare =
-        double.tryParse(cols[4].trim()) ?? 0;
+        double.tryParse(
+          cols[4].trim(),
+        ) ??
+        0;
 
     double absoluteScore =
-        double.tryParse(cols[6].trim()) ?? 0;
+        double.tryParse(
+          cols[6].trim(),
+        ) ??
+        0;
 
-    String levelStr = cols[7].trim();
+    String levelStr =
+        cols[7].trim();
 
-    CongestionData data = CongestionData(
+    CongestionData data =
+        CongestionData(
       cd: cd,
       nm: rawNm,
       currentVisitor: currentVisitor,
@@ -158,12 +183,16 @@ ParseResult _parseInBackground(ParseParams params) {
     );
 
     // 지역명 기준
-    tempCsvMapByNm[rawNm] = data;
-    tempCsvMapByNm[normalizedNm] = data;
+    tempCsvMapByNm[rawNm] =
+        data;
 
-    // ★ 시군구 코드 기준
+    tempCsvMapByNm[normalizedNm] =
+        data;
+
+    // 시군구 코드 기준
     if (cd.isNotEmpty) {
-      tempCsvMapByCd[cd] = data;
+      tempCsvMapByCd[cd] =
+          data;
     }
   }
 
@@ -173,11 +202,15 @@ ParseResult _parseInBackground(ParseParams params) {
   // ----------------------------------------------------------
 
   Map<String, dynamic> geojson =
-      jsonDecode(params.jsonString);
+      jsonDecode(
+    params.jsonString,
+  );
 
-  List features = geojson['features'] ?? [];
+  List features =
+      geojson['features'] ?? [];
 
-  List<PolygonRegion> tempRegions = [];
+  List<PolygonRegion> tempRegions =
+      [];
 
 
   // ----------------------------------------------------------
@@ -185,10 +218,15 @@ ParseResult _parseInBackground(ParseParams params) {
   // ----------------------------------------------------------
 
   for (var feature in features) {
-    var geometry = feature['geometry'];
-    var properties = feature['properties'];
 
-    if (geometry == null || properties == null) {
+    var geometry =
+        feature['geometry'];
+
+    var properties =
+        feature['properties'];
+
+    if (geometry == null ||
+        properties == null) {
       continue;
     }
 
@@ -202,7 +240,9 @@ ParseResult _parseInBackground(ParseParams params) {
             .toString()
             .trim();
 
-    if (rawNm.isEmpty) continue;
+    if (rawNm.isEmpty) {
+      continue;
+    }
 
     if (params.onlySeoul &&
         !cd.startsWith('11')) {
@@ -210,21 +250,26 @@ ParseResult _parseInBackground(ParseParams params) {
     }
 
     String type =
-        (geometry['type'] ?? '').toString();
+        (geometry['type'] ?? '')
+            .toString();
 
-    List<List<LatLng>> multiPolygons = [];
+    List<List<LatLng>>
+        multiPolygons = [];
 
 
     try {
+
       // --------------------------------------------------------
       // Polygon
       // --------------------------------------------------------
 
       if (type == 'Polygon') {
+
         List rawRings =
             geometry['coordinates'];
 
         if (rawRings.isNotEmpty) {
+
           List<LatLng> points =
               _downsampleCoordinates(
             rawRings[0],
@@ -232,21 +277,28 @@ ParseResult _parseInBackground(ParseParams params) {
           );
 
           if (points.length >= 3) {
-            multiPolygons.add(points);
+            multiPolygons.add(
+              points,
+            );
           }
         }
       }
+
 
       // --------------------------------------------------------
       // MultiPolygon
       // --------------------------------------------------------
 
       else if (type == 'MultiPolygon') {
+
         List rawPolygons =
             geometry['coordinates'];
 
         for (var poly in rawPolygons) {
-          if (poly.isEmpty) continue;
+
+          if (poly.isEmpty) {
+            continue;
+          }
 
           List<LatLng> points =
               _downsampleCoordinates(
@@ -255,11 +307,15 @@ ParseResult _parseInBackground(ParseParams params) {
           );
 
           if (points.length >= 3) {
-            multiPolygons.add(points);
+            multiPolygons.add(
+              points,
+            );
           }
         }
       }
+
     } catch (e) {
+
       debugPrint(
         "GeoJSON Polygon 파싱 오류 [$rawNm]: $e",
       );
@@ -269,6 +325,7 @@ ParseResult _parseInBackground(ParseParams params) {
 
 
     if (multiPolygons.isNotEmpty) {
+
       tempRegions.add(
         PolygonRegion(
           cd: cd,
@@ -289,75 +346,105 @@ ParseResult _parseInBackground(ParseParams params) {
 
 
 // ============================================================
-// GeoJSON 정점 다운샘플링
+// GeoJSON 정점 처리
+//
+// ★ 중요
+//
+// 기존에는 step = 5 / 10 / 20 / 35 로
+// 좌표를 강제로 많이 제거했음.
+//
+// 작은 시군구에서는 이 때문에
+// 경계가 각지고 빈틈처럼 보일 수 있음.
+//
+// 현재는 step = 1
+// → GeoJSON에 남아있는 좌표를 모두 사용.
 // ============================================================
 
 List<LatLng> _downsampleCoordinates(
   List rawCoordinates,
   bool onlySeoul,
 ) {
+
   List<LatLng> points = [];
 
-  int totalPoints = rawCoordinates.length;
+  int totalPoints =
+      rawCoordinates.length;
 
-  int step = 1;
+  // ----------------------------------------------------------
+  // ★ 경계 보존
+  //
+  // 좌표를 추가로 삭제하지 않는다.
+  // ----------------------------------------------------------
 
-  if (onlySeoul) {
-    if (totalPoints > 50) {
-      step = 10;
-    } else if (totalPoints > 20) {
-      step = 5;
-    }
-  } else {
-    if (totalPoints > 100) {
-      step = 35;
-    } else if (totalPoints > 50) {
-      step = 20;
-    } else if (totalPoints > 20) {
-      step = 10;
-    } else if (totalPoints > 8) {
-      step = 5;
-    }
-  }
+  const int step = 1;
 
+
+  // ----------------------------------------------------------
+  // 좌표 변환
+  // ----------------------------------------------------------
 
   for (
     int i = 0;
     i < totalPoints;
     i += step
   ) {
-    var c = rawCoordinates[i];
 
-    if (c is! List || c.length < 2) {
+    var c =
+        rawCoordinates[i];
+
+    if (c is! List ||
+        c.length < 2) {
       continue;
     }
 
     points.add(
       LatLng(
-        (c[1] as num).toDouble(),
-        (c[0] as num).toDouble(),
+        (c[1] as num)
+            .toDouble(),
+
+        (c[0] as num)
+            .toDouble(),
       ),
     );
   }
 
 
+  // ----------------------------------------------------------
   // 마지막 점 포함
-  if (totalPoints > 0) {
-    var last = rawCoordinates.last;
+  // ----------------------------------------------------------
 
-    if (last is List && last.length >= 2) {
-      LatLng lastPoint = LatLng(
-        (last[1] as num).toDouble(),
-        (last[0] as num).toDouble(),
+  if (totalPoints > 0) {
+
+    var last =
+        rawCoordinates.last;
+
+    if (last is List &&
+        last.length >= 2) {
+
+      LatLng lastPoint =
+          LatLng(
+        (last[1] as num)
+            .toDouble(),
+
+        (last[0] as num)
+            .toDouble(),
       );
 
-      if (points.isEmpty ||
-          points.last.latitude != lastPoint.latitude ||
-          points.last.longitude != lastPoint.longitude) {
-        points.add(lastPoint);
+      if (
+        points.isEmpty ||
+        points.last.latitude !=
+            lastPoint.latitude ||
+        points.last.longitude !=
+            lastPoint.longitude
+      ) {
+
+        points.add(
+          lastPoint,
+        );
       }
     }
   }
+
 
   return points;
 }
@@ -367,8 +454,12 @@ List<LatLng> _downsampleCoordinates(
 // MapScreen
 // ============================================================
 
-class MapScreen extends StatefulWidget {
-  const MapScreen({super.key});
+class MapScreen
+    extends StatefulWidget {
+
+  const MapScreen({
+    super.key,
+  });
 
   @override
   State<MapScreen> createState() =>
@@ -376,38 +467,49 @@ class MapScreen extends StatefulWidget {
 }
 
 
-class _MapScreenState extends State<MapScreen> {
+class _MapScreenState
+    extends State<MapScreen> {
 
   // ==========================================================
   // 지도
   // ==========================================================
 
-  KakaoMapController? mapController;
+  KakaoMapController?
+      mapController;
 
-  bool isDataLoaded = false;
-  bool isMapReady = false;
+  bool isDataLoaded =
+      false;
 
-  bool isAbsoluteMode = true;
+  bool isMapReady =
+      false;
 
-  int currentMapLevel = 12;
+  bool isAbsoluteMode =
+      true;
+
+  int currentMapLevel =
+      12;
 
 
   // ==========================================================
   // 데이터
   // ==========================================================
 
-  Map<String, CongestionData> congestionMapByNm = {};
+  Map<String, CongestionData>
+      congestionMapByNm = {};
 
-  Map<String, CongestionData> congestionMapByCd = {};
+  Map<String, CongestionData>
+      congestionMapByCd = {};
 
-  List<PolygonRegion> regions = [];
+  List<PolygonRegion>
+      regions = [];
 
 
   // ==========================================================
   // Polygon
   // ==========================================================
 
-  List<Polygon> renderedPolygons = [];
+  List<Polygon>
+      renderedPolygons = [];
 
 
   // ==========================================================
@@ -416,6 +518,7 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   void initState() {
+
     super.initState();
 
     _loadData();
@@ -427,16 +530,20 @@ class _MapScreenState extends State<MapScreen> {
   // ==========================================================
 
   Future<void> _loadData() async {
+
     try {
+
       String csvString =
           await rootBundle.loadString(
         'congestion_final.csv',
       );
 
+
       String jsonString =
           await rootBundle.loadString(
         'assets/map/sigungu_congestion.geojson',
       );
+
 
       ParseResult result =
           await compute(
@@ -448,6 +555,7 @@ class _MapScreenState extends State<MapScreen> {
         ),
       );
 
+
       congestionMapByNm =
           result.congestionMapByNm;
 
@@ -457,28 +565,38 @@ class _MapScreenState extends State<MapScreen> {
       regions =
           result.regions;
 
+
       debugPrint(
-        "혼잡도 데이터: ${congestionMapByCd.length}개",
+        "혼잡도 데이터: "
+        "${congestionMapByCd.length}개",
       );
 
       debugPrint(
-        "GeoJSON 지역: ${regions.length}개",
+        "GeoJSON 지역: "
+        "${regions.length}개",
       );
+
 
       if (mounted) {
+
         setState(() {
-          isDataLoaded = true;
+          isDataLoaded =
+              true;
         });
       }
 
     } catch (e) {
+
       debugPrint(
         "데이터 로드 오류: $e",
       );
 
+
       if (mounted) {
+
         setState(() {
-          isDataLoaded = false;
+          isDataLoaded =
+              false;
         });
       }
     }
@@ -486,14 +604,11 @@ class _MapScreenState extends State<MapScreen> {
 
 
   // ==========================================================
-  // ★ 혼잡도 데이터 찾기
-  //
-  // 1순위 : SIGUNGU_CD
-  // 2순위 : 지역명
-  // 3순위 : 정규화 지역명
+  // 혼잡도 데이터 찾기
   // ==========================================================
 
-  CongestionData? _getCongestionData(
+  CongestionData?
+      _getCongestionData(
     String regionName, {
     String? regionCode,
   }) {
@@ -502,11 +617,15 @@ class _MapScreenState extends State<MapScreen> {
     // 1. 코드
     // --------------------------------------------------------
 
-    if (regionCode != null &&
-        regionCode.isNotEmpty) {
+    if (
+      regionCode != null &&
+      regionCode.isNotEmpty
+    ) {
 
       CongestionData? data =
-          congestionMapByCd[regionCode];
+          congestionMapByCd[
+            regionCode
+          ];
 
       if (data != null) {
         return data;
@@ -519,7 +638,9 @@ class _MapScreenState extends State<MapScreen> {
     // --------------------------------------------------------
 
     CongestionData? byName =
-        congestionMapByNm[regionName];
+        congestionMapByNm[
+          regionName
+        ];
 
     if (byName != null) {
       return byName;
@@ -531,9 +652,13 @@ class _MapScreenState extends State<MapScreen> {
     // --------------------------------------------------------
 
     String normalized =
-        _normalizeName(regionName);
+        _normalizeName(
+      regionName,
+    );
 
-    return congestionMapByNm[normalized];
+    return congestionMapByNm[
+      normalized
+    ];
   }
 
 
@@ -554,23 +679,38 @@ class _MapScreenState extends State<MapScreen> {
       double score =
           data.absoluteScore;
 
+
       if (score < 20) {
-        return const Color(0xFF16A085);
+        return const Color(
+          0xFF16A085,
+        );
       }
+
 
       if (score < 40) {
-        return const Color(0xFF2ECC71);
+        return const Color(
+          0xFF2ECC71,
+        );
       }
+
 
       if (score < 60) {
-        return const Color(0xFFF1C40F);
+        return const Color(
+          0xFFF1C40F,
+        );
       }
+
 
       if (score < 80) {
-        return const Color(0xFFE67E22);
+        return const Color(
+          0xFFE67E22,
+        );
       }
 
-      return const Color(0xFFE74C3C);
+
+      return const Color(
+        0xFFE74C3C,
+      );
     }
 
 
@@ -581,23 +721,38 @@ class _MapScreenState extends State<MapScreen> {
     double compare =
         data.normalCompare;
 
+
     if (compare <= -30) {
-      return const Color(0xFF16A085);
+      return const Color(
+        0xFF16A085,
+      );
     }
+
 
     if (compare <= -10) {
-      return const Color(0xFF2ECC71);
+      return const Color(
+        0xFF2ECC71,
+      );
     }
+
 
     if (compare <= 10) {
-      return const Color(0xFFF1C40F);
+      return const Color(
+        0xFFF1C40F,
+      );
     }
+
 
     if (compare <= 40) {
-      return const Color(0xFFE67E22);
+      return const Color(
+        0xFFE67E22,
+      );
     }
 
-    return const Color(0xFFE74C3C);
+
+    return const Color(
+      0xFFE74C3C,
+    );
   }
 
 
@@ -614,21 +769,26 @@ class _MapScreenState extends State<MapScreen> {
       double score =
           data.absoluteScore;
 
+
       if (score < 20) {
         return "매우 여유";
       }
+
 
       if (score < 40) {
         return "여유";
       }
 
+
       if (score < 60) {
         return "보통";
       }
 
+
       if (score < 80) {
         return "혼잡";
       }
+
 
       return "매우 혼잡";
     }
@@ -637,21 +797,26 @@ class _MapScreenState extends State<MapScreen> {
     double compare =
         data.normalCompare;
 
+
     if (compare <= -30) {
       return "대폭 감소";
     }
+
 
     if (compare <= -10) {
       return "소폭 감소";
     }
 
+
     if (compare <= 10) {
       return "평년 수준";
     }
 
+
     if (compare <= 40) {
       return "소폭 증가";
     }
+
 
     return "대폭 증가";
   }
@@ -661,9 +826,12 @@ class _MapScreenState extends State<MapScreen> {
   // Polygon 렌더링
   // ==========================================================
 
-  Future<void> _renderPolygonsInChunks() async {
+  Future<void>
+      _renderPolygonsInChunks() async {
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
 
     setState(() {
@@ -671,7 +839,8 @@ class _MapScreenState extends State<MapScreen> {
     });
 
 
-    const int chunkSize = 20;
+    const int chunkSize =
+        20;
 
 
     for (
@@ -680,32 +849,43 @@ class _MapScreenState extends State<MapScreen> {
       i += chunkSize
     ) {
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
 
       int end =
-          (i + chunkSize < regions.length)
+          (i + chunkSize <
+                  regions.length)
               ? i + chunkSize
               : regions.length;
 
 
       List<PolygonRegion> chunk =
-          regions.sublist(i, end);
+          regions.sublist(
+        i,
+        end,
+      );
 
 
-      List<Polygon> newChunkPolygons = [];
+      List<Polygon>
+          newChunkPolygons = [];
 
 
-      for (PolygonRegion region in chunk) {
+      for (
+        PolygonRegion region
+        in chunk
+      ) {
 
         // ----------------------------------------------------
-        // ★ 코드 우선
+        // 코드 우선
         // ----------------------------------------------------
 
         CongestionData? data =
             _getCongestionData(
           region.nm,
-          regionCode: region.cd,
+          regionCode:
+              region.cd,
         );
 
 
@@ -715,20 +895,26 @@ class _MapScreenState extends State<MapScreen> {
 
         Color fillColor;
 
+
         if (data != null) {
 
           fillColor =
-              _getStageColor(data);
+              _getStageColor(
+            data,
+          );
 
         } else {
 
-          // 데이터가 정말 없는 지역
           fillColor =
-              const Color(0xFFBDBDBD);
+              const Color(
+            0xFFBDBDBD,
+          );
+
 
           debugPrint(
             "혼잡도 데이터 없음: "
-            "${region.nm} (${region.cd})",
+            "${region.nm} "
+            "(${region.cd})",
           );
         }
 
@@ -737,7 +923,8 @@ class _MapScreenState extends State<MapScreen> {
         // Polygon
         // ----------------------------------------------------
 
-        int polyIndex = 0;
+        int polyIndex =
+            0;
 
 
         for (
@@ -752,24 +939,29 @@ class _MapScreenState extends State<MapScreen> {
 
           newChunkPolygons.add(
             Polygon(
-              polygonId:
-                  "${region.cd}_${region.nm}_$polyIndex",
 
-              points: points,
+              polygonId:
+                  "${region.cd}_"
+                  "${region.nm}_"
+                  "$polyIndex",
+
+              points:
+                  points,
+
 
               // 경계선
               strokeColor:
                   Colors.black38,
 
-              strokeWidth: 2,
+              strokeWidth:
+                  2,
+
 
               // 혼잡도 색상
               fillColor:
                   fillColor,
 
-              // ★ 지도와 색상 조화
-              //
-              // 기존보다 훨씬 투명하게 설정
+
               fillOpacity:
                   data != null
                       ? 0.10
@@ -783,11 +975,15 @@ class _MapScreenState extends State<MapScreen> {
       }
 
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
 
       setState(() {
-        renderedPolygons.addAll(
+
+        renderedPolygons
+            .addAll(
           newChunkPolygons,
         );
       });
@@ -811,7 +1007,8 @@ class _MapScreenState extends State<MapScreen> {
     List<LatLng> polygon,
   ) {
 
-    bool isInside = false;
+    bool isInside =
+        false;
 
     int j =
         polygon.length - 1;
@@ -841,7 +1038,8 @@ class _MapScreenState extends State<MapScreen> {
         )
       ) {
 
-        isInside = !isInside;
+        isInside =
+            !isInside;
       }
 
 
@@ -902,7 +1100,8 @@ class _MapScreenState extends State<MapScreen> {
     CongestionData? data =
         _getCongestionData(
       regionName,
-      regionCode: regionCode,
+      regionCode:
+          regionCode,
     );
 
 
@@ -913,7 +1112,9 @@ class _MapScreenState extends State<MapScreen> {
           const RoundedRectangleBorder(
         borderRadius:
             BorderRadius.vertical(
-          top: Radius.circular(24),
+          top: Radius.circular(
+            24,
+          ),
         ),
       ),
 
@@ -927,7 +1128,9 @@ class _MapScreenState extends State<MapScreen> {
 
           return Container(
             padding:
-                const EdgeInsets.all(24),
+                const EdgeInsets.all(
+              24,
+            ),
 
             height: 180,
 
@@ -950,6 +1153,7 @@ class _MapScreenState extends State<MapScreen> {
 
                   Text(
                     regionName,
+
                     style:
                         const TextStyle(
                       fontSize: 20,
@@ -964,6 +1168,7 @@ class _MapScreenState extends State<MapScreen> {
 
                   const Text(
                     "현재 혼잡도 데이터가 없습니다.",
+
                     style:
                         TextStyle(
                       fontSize: 14,
@@ -982,10 +1187,14 @@ class _MapScreenState extends State<MapScreen> {
         // ----------------------------------------------------
 
         Color statusColor =
-            _getStageColor(data);
+            _getStageColor(
+          data,
+        );
 
         String statusText =
-            _getStageText(data);
+            _getStageText(
+          data,
+        );
 
 
         return SafeArea(
@@ -1011,12 +1220,14 @@ class _MapScreenState extends State<MapScreen> {
 
                 Row(
                   mainAxisAlignment:
-                      MainAxisAlignment.spaceBetween,
+                      MainAxisAlignment
+                          .spaceBetween,
 
                   children: [
 
                     Text(
                       data.nm,
+
                       style:
                           const TextStyle(
                         fontSize: 22,
@@ -1027,25 +1238,32 @@ class _MapScreenState extends State<MapScreen> {
 
                     Container(
                       padding:
-                          const EdgeInsets.symmetric(
+                          const EdgeInsets
+                              .symmetric(
                         horizontal: 12,
                         vertical: 7,
                       ),
 
                       decoration:
                           BoxDecoration(
-                        color: statusColor,
+                        color:
+                            statusColor,
+
                         borderRadius:
-                            BorderRadius.circular(
+                            BorderRadius
+                                .circular(
                           15,
                         ),
                       ),
 
                       child: Text(
                         statusText,
+
                         style:
                             const TextStyle(
-                          color: Colors.white,
+                          color:
+                              Colors.white,
+
                           fontWeight:
                               FontWeight.bold,
                         ),
@@ -1064,25 +1282,31 @@ class _MapScreenState extends State<MapScreen> {
 
                 Row(
                   mainAxisAlignment:
-                      MainAxisAlignment.spaceAround,
+                      MainAxisAlignment
+                          .spaceAround,
 
                   children: [
 
                     _buildStatColumn(
                       "현재 방문자",
+
                       "${data.currentVisitor.toInt()}명",
                     ),
 
                     _buildStatColumn(
                       "평소 방문자",
+
                       "${data.normalVisitor.toInt()}명",
                     ),
 
                     _buildStatColumn(
                       "평소 대비",
+
                       "${data.normalCompare > 0 ? '+' : ''}"
                       "${data.normalCompare.toStringAsFixed(1)}%",
-                      isHighlight: true,
+
+                      isHighlight:
+                          true,
                     ),
                   ],
                 ),
@@ -1107,7 +1331,8 @@ class _MapScreenState extends State<MapScreen> {
   Widget _buildStatColumn(
     String label,
     String value, {
-    bool isHighlight = false,
+    bool isHighlight =
+        false,
   }) {
 
     return Column(
@@ -1115,6 +1340,7 @@ class _MapScreenState extends State<MapScreen> {
 
         Text(
           label,
+
           style:
               const TextStyle(
             fontSize: 13,
@@ -1128,11 +1354,14 @@ class _MapScreenState extends State<MapScreen> {
 
         Text(
           value,
+
           style:
               TextStyle(
             fontSize: 17,
+
             fontWeight:
                 FontWeight.bold,
+
             color: isHighlight
                 ? Colors.blueAccent
                 : Colors.black87,
@@ -1149,7 +1378,8 @@ class _MapScreenState extends State<MapScreen> {
 
   void _zoomIn() {
 
-    if (mapController == null) {
+    if (mapController ==
+        null) {
       return;
     }
 
@@ -1179,7 +1409,8 @@ class _MapScreenState extends State<MapScreen> {
 
   void _zoomOut() {
 
-    if (mapController == null) {
+    if (mapController ==
+        null) {
       return;
     }
 
@@ -1209,15 +1440,16 @@ class _MapScreenState extends State<MapScreen> {
 
   void _resetMap() {
 
-    if (mapController == null) {
+    if (mapController ==
+        null) {
       return;
     }
 
 
-    currentMapLevel = 12;
+    currentMapLevel =
+        12;
 
 
-    // ★ const 제거
     mapController!.setCenter(
       LatLng(
         36.3,
@@ -1247,21 +1479,28 @@ class _MapScreenState extends State<MapScreen> {
   }) {
 
     return Material(
-      color: Colors.white,
+      color:
+          Colors.white,
 
-      elevation: 4,
+      elevation:
+          4,
 
       shadowColor:
           Colors.black26,
 
       borderRadius:
-          BorderRadius.circular(14),
+          BorderRadius.circular(
+        14,
+      ),
 
       child: InkWell(
-        onTap: onTap,
+        onTap:
+            onTap,
 
         borderRadius:
-            BorderRadius.circular(14),
+            BorderRadius.circular(
+          14,
+        ),
 
         child: SizedBox(
           width: 46,
@@ -1269,8 +1508,12 @@ class _MapScreenState extends State<MapScreen> {
 
           child: Icon(
             icon,
-            color: Colors.black87,
-            size: 23,
+
+            color:
+                Colors.black87,
+
+            size:
+                23,
           ),
         ),
       ),
@@ -1284,7 +1527,8 @@ class _MapScreenState extends State<MapScreen> {
 
   Widget _buildLegend() {
 
-    List<Map<String, dynamic>> items;
+    List<Map<String, dynamic>>
+        items;
 
 
     if (isAbsoluteMode) {
@@ -1293,35 +1537,50 @@ class _MapScreenState extends State<MapScreen> {
 
         {
           "color":
-              const Color(0xFF16A085),
+              const Color(
+            0xFF16A085,
+          ),
+
           "text":
               "매우 여유",
         },
 
         {
           "color":
-              const Color(0xFF2ECC71),
+              const Color(
+            0xFF2ECC71,
+          ),
+
           "text":
               "여유",
         },
 
         {
           "color":
-              const Color(0xFFF1C40F),
+              const Color(
+            0xFFF1C40F,
+          ),
+
           "text":
               "보통",
         },
 
         {
           "color":
-              const Color(0xFFE67E22),
+              const Color(
+            0xFFE67E22,
+          ),
+
           "text":
               "혼잡",
         },
 
         {
           "color":
-              const Color(0xFFE74C3C),
+              const Color(
+            0xFFE74C3C,
+          ),
+
           "text":
               "매우 혼잡",
         },
@@ -1333,35 +1592,50 @@ class _MapScreenState extends State<MapScreen> {
 
         {
           "color":
-              const Color(0xFF16A085),
+              const Color(
+            0xFF16A085,
+          ),
+
           "text":
               "대폭 감소",
         },
 
         {
           "color":
-              const Color(0xFF2ECC71),
+              const Color(
+            0xFF2ECC71,
+          ),
+
           "text":
               "소폭 감소",
         },
 
         {
           "color":
-              const Color(0xFFF1C40F),
+              const Color(
+            0xFFF1C40F,
+          ),
+
           "text":
               "평년 수준",
         },
 
         {
           "color":
-              const Color(0xFFE67E22),
+              const Color(
+            0xFFE67E22,
+          ),
+
           "text":
               "소폭 증가",
         },
 
         {
           "color":
-              const Color(0xFFE74C3C),
+              const Color(
+            0xFFE74C3C,
+          ),
+
           "text":
               "대폭 증가",
         },
@@ -1384,14 +1658,23 @@ class _MapScreenState extends State<MapScreen> {
         ),
 
         borderRadius:
-            BorderRadius.circular(16),
+            BorderRadius.circular(
+          16,
+        ),
 
         boxShadow: const [
           BoxShadow(
-            color: Colors.black12,
-            blurRadius: 6,
+            color:
+                Colors.black12,
+
+            blurRadius:
+                6,
+
             offset:
-                Offset(0, 3),
+                Offset(
+              0,
+              3,
+            ),
           ),
         ],
       ),
@@ -1426,7 +1709,8 @@ class _MapScreenState extends State<MapScreen> {
 
               return Padding(
                 padding:
-                    const EdgeInsets.symmetric(
+                    const EdgeInsets
+                        .symmetric(
                   vertical: 2,
                 ),
 
@@ -1444,6 +1728,7 @@ class _MapScreenState extends State<MapScreen> {
                           BoxDecoration(
                         color:
                             item["color"],
+
                         shape:
                             BoxShape.circle,
                       ),
@@ -1491,14 +1776,23 @@ class _MapScreenState extends State<MapScreen> {
             Colors.grey[200],
 
         borderRadius:
-            BorderRadius.circular(25),
+            BorderRadius.circular(
+          25,
+        ),
 
         boxShadow: const [
           BoxShadow(
-            color: Colors.black12,
-            blurRadius: 6,
+            color:
+                Colors.black12,
+
+            blurRadius:
+                6,
+
             offset:
-                Offset(0, 3),
+                Offset(
+              0,
+              3,
+            ),
           ),
         ],
       ),
@@ -1511,14 +1805,16 @@ class _MapScreenState extends State<MapScreen> {
           // --------------------------------------------------
 
           Expanded(
-            child: GestureDetector(
+            child:
+                GestureDetector(
 
               onTap: () {
 
                 if (!isAbsoluteMode) {
 
                   setState(() {
-                    isAbsoluteMode = true;
+                    isAbsoluteMode =
+                        true;
                   });
 
                   _renderPolygonsInChunks();
@@ -1535,7 +1831,9 @@ class _MapScreenState extends State<MapScreen> {
                           : Colors.transparent,
 
                   borderRadius:
-                      BorderRadius.circular(25),
+                      BorderRadius.circular(
+                    25,
+                  ),
                 ),
 
                 alignment:
@@ -1565,14 +1863,16 @@ class _MapScreenState extends State<MapScreen> {
           // --------------------------------------------------
 
           Expanded(
-            child: GestureDetector(
+            child:
+                GestureDetector(
 
               onTap: () {
 
                 if (isAbsoluteMode) {
 
                   setState(() {
-                    isAbsoluteMode = false;
+                    isAbsoluteMode =
+                        false;
                   });
 
                   _renderPolygonsInChunks();
@@ -1589,7 +1889,9 @@ class _MapScreenState extends State<MapScreen> {
                           : Colors.transparent,
 
                   borderRadius:
-                      BorderRadius.circular(25),
+                      BorderRadius.circular(
+                    25,
+                  ),
                 ),
 
                 alignment:
@@ -1641,7 +1943,8 @@ class _MapScreenState extends State<MapScreen> {
           ),
         ),
 
-        centerTitle: true,
+        centerTitle:
+            true,
       ),
 
 
@@ -1669,7 +1972,9 @@ class _MapScreenState extends State<MapScreen> {
 
 
                 mapController!
-                    .setZoomable(true);
+                    .setZoomable(
+                  true,
+                );
 
 
                 await Future.delayed(
@@ -1682,7 +1987,8 @@ class _MapScreenState extends State<MapScreen> {
                 if (mounted) {
 
                   setState(() {
-                    isMapReady = true;
+                    isMapReady =
+                        true;
                   });
 
 
@@ -1706,8 +2012,6 @@ class _MapScreenState extends State<MapScreen> {
 
               // ------------------------------------------------
               // 기본 위치
-              //
-              // ★ const 제거
               // ------------------------------------------------
 
               center:
@@ -1824,8 +2128,11 @@ class _MapScreenState extends State<MapScreen> {
                   // 확대
 
                   _buildMapControlButton(
-                    icon: Icons.add,
-                    onTap: _zoomIn,
+                    icon:
+                        Icons.add,
+
+                    onTap:
+                        _zoomIn,
                   ),
 
 
@@ -1837,8 +2144,11 @@ class _MapScreenState extends State<MapScreen> {
                   // 축소
 
                   _buildMapControlButton(
-                    icon: Icons.remove,
-                    onTap: _zoomOut,
+                    icon:
+                        Icons.remove,
+
+                    onTap:
+                        _zoomOut,
                   ),
 
 
@@ -1850,8 +2160,11 @@ class _MapScreenState extends State<MapScreen> {
                   // 전국 보기
 
                   _buildMapControlButton(
-                    icon: Icons.public,
-                    onTap: _resetMap,
+                    icon:
+                        Icons.public,
+
+                    onTap:
+                        _resetMap,
                   ),
                 ],
               ),
