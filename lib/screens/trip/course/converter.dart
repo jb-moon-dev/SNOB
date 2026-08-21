@@ -32,17 +32,10 @@ class RegionCodeConverter {
       for (final row in table.rows) {
         if (row.length < 4) continue;
 
-        final areaCd =
-            row[0]?.value?.toString();
-
-        final areaNm =
-            row[1]?.value?.toString();
-
-        final sigunguCd =
-            row[2]?.value?.toString();
-
-        final sigunguNm =
-            row[3]?.value?.toString();
+        final areaCd = row[0]?.value?.toString();
+        final areaNm = row[1]?.value?.toString();
+        final sigunguCd = row[2]?.value?.toString();
+        final sigunguNm = row[3]?.value?.toString();
 
         if (areaNm == null ||
             sigunguNm == null ||
@@ -51,10 +44,9 @@ class RegionCodeConverter {
           continue;
         }
 
-        final excelRegionName =
-            '$areaNm $sigunguNm';
-
-        if (excelRegionName == regionName) {
+        // RegionVector에는 "강릉시", "종로구"처럼
+        // 시군구 이름만 저장되어 있으므로 시군구명으로 비교
+        if (sigunguNm == regionName) {
           return RegionCode(
             areaCd: areaCd,
             sigunguCd: sigunguCd,

@@ -41,5 +41,5 @@ flutter:
 
   assets:
     - assets/map/sigungu_congestion.geojson
-    - congestion_final.csv # 또는 위치한 경로
-    - data/region_codes.xlsx
+    - congestion_final.csv
+    - assets/region_codes.xlsx
