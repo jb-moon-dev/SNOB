@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'questions.dart';
 import 'question_model.dart';
@@ -12,9 +14,7 @@ import 'result_screen.dart';
 
 import 'package:snob/snob/user_vector.dart';
 import 'package:snob/snob/recommendation_engine.dart';
-import 'package:snob/snob/vector_generator.dart';
-
-import '../../../services/tourism_api_service.dart';
+import 'package:snob/snob/region_vector.dart';
 
 
 class PersonalityTestScreen extends StatefulWidget {
@@ -29,7 +29,6 @@ class PersonalityTestScreen extends StatefulWidget {
 }
 
 
-
 class _PersonalityTestScreenState
     extends State<PersonalityTestScreen> {
 
@@ -41,13 +40,10 @@ class _PersonalityTestScreenState
       ScoreManager();
 
 
-
   late List<Question> shuffledQuestions;
 
 
   late List<Answer> shuffledAnswers;
-
-
 
 
   @override
@@ -56,7 +52,8 @@ class _PersonalityTestScreenState
     super.initState();
 
 
-    shuffledQuestions = List<Question>.from(questions);
+    shuffledQuestions =
+        List<Question>.from(questions);
 
 
     shuffledAnswers =
@@ -68,17 +65,11 @@ class _PersonalityTestScreenState
   }
 
 
-
-
-
   void nextQuestion() {
-
 
     setState(() {
 
-
       currentQuestion++;
-
 
 
       shuffledAnswers =
@@ -87,17 +78,32 @@ class _PersonalityTestScreenState
           )
             ..shuffle(Random());
 
-
-
     });
-
 
   }
 
 
+  Future<List<RegionVector>> loadRegions() async {
+
+    final jsonString =
+        await rootBundle.loadString(
+      'assets/data/region_vectors.json',
+    );
 
 
+    final List<dynamic> jsonData =
+        json.decode(jsonString);
 
+
+    return jsonData
+        .map(
+          (json) => RegionVector.fromJson(
+            json as Map<String, dynamic>,
+          ),
+        )
+        .toList();
+
+  }
 
 
   Future<void> finishTest() async {
@@ -140,75 +146,36 @@ class _PersonalityTestScreenState
 
 
     // =====================================
-    // 4. 관광지 전체 데이터 가져오기
-    // =====================================
-
-    final spots =
-        await TourismApiService
-            .getAllTourismSpots();
-
-
-    if (spots.isEmpty) {
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "추천할 관광지 데이터가 없습니다.",
-          ),
-        ),
-      );
-
-      return;
-    }
-
-
-    // =====================================
-    // 5. 관광지 → SpotVector
-    // =====================================
-
-    final spotVectors =
-        spots
-            .map(
-              (spot) =>
-                  VectorGenerator
-                      .generateSpotVector(
-                spot,
-              ),
-            )
-            .toList();
-
-
-    // =====================================
-    // 6. SpotVector → RegionVector
+    // 4. 저장된 RegionVector 불러오기
     // =====================================
 
     final regions =
-        VectorGenerator.generateRegions(
-      spotVectors,
-    );
+        await loadRegions();
 
 
     if (regions.isEmpty) {
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         const SnackBar(
           content: Text(
-            "추천할 지역 데이터가 없습니다.",
+            '추천 가능한 지역 데이터가 없습니다.',
           ),
         ),
       );
 
       return;
+
     }
 
 
     // =====================================
-    // 7. RecommendationEngine
-    //    Top 3 중 랜덤으로 1개 선택
+    // 5. RecommendationEngine
+    //    Top 3 중 랜덤 추천
     // =====================================
 
     final recommendedRegion =
@@ -220,10 +187,13 @@ class _PersonalityTestScreenState
 
 
     // =====================================
-    // 8. 결과 화면
+    // 6. 결과 화면
     // =====================================
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
+
 
     Navigator.push(
       context,
@@ -239,374 +209,147 @@ class _PersonalityTestScreenState
   }
 
 
-
-
-
-
-
-
-
   @override
   Widget build(BuildContext context) {
-
 
     Question question =
         shuffledQuestions[currentQuestion];
 
 
-
     return Scaffold(
-
-
 
       appBar: AppBar(
 
-
         title:
         const Text(
-
           "여행 성향 테스트",
-
         ),
 
-
       ),
-
-
-
-
 
 
       body: Padding(
 
-
-
         padding:
-
         const EdgeInsets.all(20),
-
-
-
 
 
         child: Column(
 
-
-
           crossAxisAlignment:
-
           CrossAxisAlignment.start,
-
-
-
 
 
           children: [
 
-
-
-
-
             Text(
-
 
               "${currentQuestion + 1} / ${shuffledQuestions.length}",
 
-
               style:
-
               const TextStyle(
 
-
-                fontSize:18,
-
+                fontSize: 18,
 
                 fontWeight:
-
                 FontWeight.bold,
 
-
               ),
-
-
 
             ),
 
 
-
-
-
-
-
-
-
-            const SizedBox(height:30),
-
-
-
-
-
-
-
+            const SizedBox(height: 30),
 
 
             Text(
 
-
               question.question,
 
-
               style:
-
               const TextStyle(
 
-
-                fontSize:24,
-
+                fontSize: 24,
 
                 fontWeight:
-
                 FontWeight.bold,
 
-
               ),
-
-
 
             ),
 
 
-
-
-
-
-
-
-
-            const SizedBox(height:40),
-
-
-
-
-
-
-
+            const SizedBox(height: 40),
 
 
             Column(
 
-
-
               children:
 
-
-
-              shuffledAnswers.map((answer){
-
-
-
-
+              shuffledAnswers.map((answer) {
 
                 return Padding(
 
-
-
-
-
                   padding:
-
                   const EdgeInsets.only(
-
-                    bottom:15,
-
+                    bottom: 15,
                   ),
 
 
-
-
-
-
-
-
-
-                  child:
-
-                  SizedBox(
-
-
+                  child: SizedBox(
 
                     width:
-
                     double.infinity,
 
 
+                    child: ElevatedButton(
 
-
-
-
-
-
-
-                    child:
-
-                    ElevatedButton(
-
-
-
-
-
-                      onPressed:(){
-
-
-
-
-
+                      onPressed: () {
 
                         // 선택한 답변 점수 추가
-
-                        scoreManager.addScore(answer);
-
-
-
+                        scoreManager.addScore(
+                          answer,
+                        );
 
 
-
-
-
-                        if(currentQuestion ==
-
-                            shuffledQuestions.length - 1){
-
-
-
-
-
+                        if (currentQuestion ==
+                            shuffledQuestions.length - 1) {
 
                           finishTest();
 
-
-
-
-
-
-
                         } else {
-
-
-
-
 
                           nextQuestion();
 
-
-
-
-
-
-
                         }
-
-
-
-
-
-
 
                       },
 
 
-
-
-
-
-
-
-
                       child:
 
-
-
                       Text(
-
-
-
                         answer.text,
-
-
-
                       ),
-
-
-
-
-
-
-
-
 
                     ),
 
-
-
-
-
-
-
-
-
                   ),
-
-
-
-
-
-
-
-
 
                 );
 
-
-
-
-
               }).toList(),
-
-
-
-
-
-
-
-
 
             ),
 
-
-
-
-
           ],
-
-
-
-
 
         ),
 
-
-
-
-
       ),
-
-
 
     );
 
-
-
   }
-
 
 }
