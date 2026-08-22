@@ -97,6 +97,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: ElevatedButton(
                   onPressed: () {
                     print("Apple 로그인 준비");
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const BottomNavigation(),
+                      ),
+                    );
                   },
                   child: const Text("Apple로 시작하기"),
                 ),
