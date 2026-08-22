@@ -490,46 +490,6 @@ const List<RegionVector> regions = [
   ),
 
   RegionVector(
-    regionName: '세종특별자치시 동구',
-    nature: 50.00,
-    hidden: 50.00,
-    healing: 50.00,
-    congestion: 55.70,
-  ),
-
-  RegionVector(
-    regionName: '세종특별자치시 서구',
-    nature: 50.00,
-    hidden: 50.00,
-    healing: 50.00,
-    congestion: 57.20,
-  ),
-
-  RegionVector(
-    regionName: '세종특별자치시 남구',
-    nature: 50.00,
-    hidden: 50.00,
-    healing: 50.00,
-    congestion: 59.50,
-  ),
-
-  RegionVector(
-    regionName: '세종특별자치시 북구',
-    nature: 50.00,
-    hidden: 50.00,
-    healing: 50.00,
-    congestion: 54.40,
-  ),
-
-  RegionVector(
-    regionName: '세종특별자치시 광산구',
-    nature: 50.00,
-    hidden: 50.00,
-    healing: 50.00,
-    congestion: 54.90,
-  ),
-
-  RegionVector(
     regionName: '동구',
     nature: 62.00,
     hidden: 65.00,
@@ -610,7 +570,7 @@ const List<RegionVector> regions = [
   ),
 
   RegionVector(
-    regionName: '전라남도 세종특별자치시',
+    regionName: '세종특별자치시',
     nature: 50.00,
     hidden: 50.00,
     healing: 50.00,

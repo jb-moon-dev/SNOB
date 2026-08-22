@@ -35,6 +35,7 @@ class TourismApiService {
           "&MobileOS=AND"
           "&MobileApp=SNOB"
           "&_type=json"
+          "&numOfRows=100"
 
     );
 
@@ -84,6 +85,8 @@ class TourismApiService {
 
     for(var item in items){
 
+
+      print("시도 API item : $item");
 
       codes.add(
         item["code"].toString()

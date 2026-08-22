@@ -1,41 +1,24 @@
-import 'services/congestion_service.dart';
+import 'snob/region_data.dart';
 
-Future<void> main() async {
+void main() {
+  print('Region 데이터 테스트 시작');
+  print('지역 수: ${regions.length}');
+
+  // 세종 검색
+  final sejongRegions = regions.where(
+    (region) => region.regionName.contains('세종'),
+  ).toList();
+
   print('');
-  print('========================================');
-  print('관광지 집중률 API 테스트');
-  print('========================================');
+  print('=== 세종 테스트 ===');
+  print('세종 지역 수: ${sejongRegions.length}');
 
-  final service = CongestionService();
-
-  try {
-    final result = await service.getCongestion(
-      areaCd: '26',
-      signguCd: '26350',
-      touristSpotName: '해운대해수욕장',
-    );
-
+  for (final region in sejongRegions) {
     print('');
-    print('========================================');
-    print('조회 결과');
-    print('데이터 수: ${result.length}');
-    print('========================================');
-
-    for (int i = 0; i < result.length; i++) {
-      print('');
-      print('[${i + 1}]');
-      print(result[i]);
-    }
-
-    print('');
-    print('========================================');
-    print('테스트 종료');
-    print('========================================');
-  } catch (e) {
-    print('');
-    print('========================================');
-    print('오류 발생');
-    print(e);
-    print('========================================');
+    print('지역명: ${region.regionName}');
+    print('자연: ${region.nature}');
+    print('숨은: ${region.hidden}');
+    print('힐링: ${region.healing}');
+    print('혼잡도: ${region.congestion}');
   }
 }
