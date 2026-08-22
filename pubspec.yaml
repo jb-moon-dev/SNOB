@@ -12,8 +12,8 @@ dependencies:
   flutter:
     sdk: flutter
 
-  http: ^1.1.0
   cupertino_icons: ^1.0.8
+  http: ^1.1.0
 
   # Kakao Login
   kakao_flutter_sdk_user: ^2.0.0+1
@@ -23,18 +23,22 @@ dependencies:
 
   # Secure Token Storage
   flutter_secure_storage: ^9.2.2
+
+  # Map
   flutter_map: ^8.3.1
   latlong2: ^0.10.1
 
+  # Excel
   excel: ^4.0.6
 
+  # Local Storage
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
   flutter_lints: ^6.0.0
-
 
 flutter:
   uses-material-design: true

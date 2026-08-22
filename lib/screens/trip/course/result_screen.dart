@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'snob_congestion.dart';
 import '../../../models/travel_plan.dart';
+import '../../../services/travel_plan_storage.dart';
 
 class CourseResultScreen extends StatefulWidget {
   // 추천 지역명
@@ -21,7 +22,8 @@ class CourseResultScreen extends StatefulWidget {
       _CourseResultScreenState();
 }
 
-class _CourseResultScreenState extends State<CourseResultScreen> {
+class _CourseResultScreenState
+    extends State<CourseResultScreen> {
   bool isLoading = true;
 
   String? errorMessage;
@@ -38,13 +40,51 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
   void initState() {
     super.initState();
 
-    // 현재 추천 지역으로 여행 일정 생성
+    // 일단 기본 여행 일정 생성
     travelPlan = TravelPlan.create(
       regionName: widget.regionName,
       dayCount: 1,
     );
 
+    // 저장된 일정 불러오기
+    _initializeTravelPlan();
+
+    // SNOB 계산
     _calculateSnob();
+  }
+
+  // ============================================================
+  // 저장된 여행 일정 불러오기
+  // ============================================================
+
+  Future<void> _initializeTravelPlan() async {
+    try {
+      final savedPlan =
+          await TravelPlanStorage.loadTravelPlan();
+
+      if (!mounted) return;
+
+      if (savedPlan != null &&
+          savedPlan.regionName == widget.regionName) {
+        setState(() {
+          travelPlan = savedPlan;
+        });
+
+        print(
+          '저장된 여행 일정 불러오기 완료: '
+          '${savedPlan.regionName}',
+        );
+
+        print(
+          '저장된 관광지 수: '
+          '${savedPlan.totalSpotCount}',
+        );
+      } else {
+        print('현재 지역에 해당하는 저장된 일정이 없습니다.');
+      }
+    } catch (e) {
+      print('여행 일정 불러오기 오류: $e');
+    }
   }
 
   // ============================================================
@@ -88,15 +128,21 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
       print('결과 수: ${calculatedResults.length}');
       print('========================================');
 
-      for (int i = 0; i < calculatedResults.length; i++) {
+      for (int i = 0;
+          i < calculatedResults.length;
+          i++) {
         final result = calculatedResults[i];
 
         print('');
-        print('[${i + 1}] ${result.spot['hubTatsNm']}');
+        print(
+          '[${i + 1}] ${result.spot['hubTatsNm']}',
+        );
+
         print(
           '30일 평균 혼잡도: '
           '${result.averageCongestion.toStringAsFixed(2)}',
         );
+
         print(
           'SNOB 점수: '
           '${result.snobScore.toStringAsFixed(2)}',
@@ -124,10 +170,12 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
   }
 
   // ============================================================
-  // 일정에 관광지 추가
+  // 일정에 관광지 추가 + 저장
   // ============================================================
 
-  void _addToPlan(SnobCongestionResult result) {
+  Future<void> _addToPlan(
+    SnobCongestionResult result,
+  ) async {
     final spot = TravelSpot.fromMap(
       spot: result.spot,
       congestion: result.averageCongestion,
@@ -138,6 +186,13 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
       day: 1,
       spot: spot,
     );
+
+    // SharedPreferences에 저장
+    await TravelPlanStorage.saveTravelPlan(
+      travelPlan,
+    );
+
+    if (!mounted) return;
 
     setState(() {});
 
@@ -158,7 +213,9 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
   bool _isAdded(String spotName) {
     return travelPlan.days
         .expand((day) => day.spots)
-        .any((spot) => spot.name == spotName);
+        .any(
+          (spot) => spot.name == spotName,
+        );
   }
 
   // ============================================================
@@ -172,6 +229,7 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (context) {
         return SafeArea(
           child: Padding(
@@ -224,16 +282,47 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
                       final spot = entry.value;
 
                       return ListTile(
-                        contentPadding: EdgeInsets.zero,
+                        contentPadding:
+                            EdgeInsets.zero,
+
                         leading: CircleAvatar(
                           child: Text(
                             '${index + 1}',
                           ),
                         ),
+
                         title: Text(spot.name),
-                        subtitle: spot.category != null
-                            ? Text(spot.category!)
-                            : null,
+
+                        subtitle:
+                            spot.category != null
+                                ? Text(spot.category!)
+                                : null,
+
+                        trailing: IconButton(
+                          icon: const Icon(
+                            Icons.delete_outline,
+                          ),
+                          onPressed: () async {
+                            travelPlan.removeSpot(
+                              day: 1,
+                              spotName: spot.name,
+                            );
+
+                            await TravelPlanStorage
+                                .saveTravelPlan(
+                              travelPlan,
+                            );
+
+                            if (!mounted) return;
+
+                            Navigator.pop(context);
+
+                            setState(() {});
+
+                            // 다시 일정창 열기
+                            _showPlan();
+                          },
+                        ),
                       );
                     },
                   ),
@@ -247,13 +336,16 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
     );
   }
 
+  // ============================================================
+  // build
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('코스 추천'),
 
-        // 일정 버튼
         actions: [
           if (travelPlan.totalSpotCount > 0)
             IconButton(
@@ -264,6 +356,7 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
             ),
         ],
       ),
+
       body: _buildBody(),
     );
   }
@@ -276,14 +369,19 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
     if (isLoading) {
       return const Center(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment:
+              MainAxisAlignment.center,
           children: [
             CircularProgressIndicator(),
+
             SizedBox(height: 20),
+
             Text(
               '관광지 혼잡도를 분석하고 있어요.',
             ),
+
             SizedBox(height: 8),
+
             Text(
               '잠시만 기다려주세요.',
             ),
@@ -301,7 +399,8 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Text(
-            '코스 추천 중 오류가 발생했습니다.\n\n$errorMessage',
+            '코스 추천 중 오류가 발생했습니다.\n\n'
+            '$errorMessage',
             textAlign: TextAlign.center,
           ),
         ),
@@ -326,7 +425,8 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
     // ------------------------------------------------------------
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
       children: [
         // ----------------------------------------------------------
         // 추천 지역
@@ -350,7 +450,9 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
                   color: Colors.grey,
                 ),
               ),
+
               const SizedBox(height: 5),
+
               Text(
                 widget.regionName,
                 style: const TextStyle(
@@ -358,7 +460,9 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+
               const SizedBox(height: 8),
+
               const Text(
                 '혼잡도가 낮은 관광지부터 추천해드려요.',
                 style: TextStyle(
@@ -386,26 +490,38 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
               final spot = result.spot;
 
               final spotName =
-                  spot['hubTatsNm']?.toString() ?? '이름 없음';
+                  spot['hubTatsNm']
+                          ?.toString() ??
+                      '이름 없음';
 
               final middleCategory =
-                  spot['hubCtgryMclsNm']?.toString() ?? '';
+                  spot['hubCtgryMclsNm']
+                          ?.toString() ??
+                      '';
 
               final signguName =
-                  spot['signguNm']?.toString() ?? '';
+                  spot['signguNm']
+                          ?.toString() ??
+                      '';
 
               // 일정에 이미 추가됐는지 확인
-              final isAdded = _isAdded(spotName);
+              final isAdded =
+                  _isAdded(spotName);
 
               return Card(
-                margin: const EdgeInsets.only(
+                margin:
+                    const EdgeInsets.only(
                   bottom: 12,
                 ),
+
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding:
+                      const EdgeInsets.all(16),
+
                   child: Row(
                     crossAxisAlignment:
                         CrossAxisAlignment.start,
+
                     children: [
                       // ------------------------------------------------
                       // 순위
@@ -417,7 +533,9 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
                         ),
                       ),
 
-                      const SizedBox(width: 15),
+                      const SizedBox(
+                        width: 15,
+                      ),
 
                       // ------------------------------------------------
                       // 관광지 정보
@@ -426,36 +544,50 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
                       Expanded(
                         child: Column(
                           crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                              CrossAxisAlignment
+                                  .start,
+
                           children: [
                             Text(
                               spotName,
-                              style: const TextStyle(
+                              style:
+                                  const TextStyle(
                                 fontSize: 17,
                                 fontWeight:
-                                    FontWeight.bold,
+                                    FontWeight
+                                        .bold,
                               ),
                             ),
 
-                            const SizedBox(height: 5),
+                            const SizedBox(
+                              height: 5,
+                            ),
 
-                            if (middleCategory.isNotEmpty)
+                            if (middleCategory
+                                .isNotEmpty)
                               Text(
                                 middleCategory,
-                                style: const TextStyle(
-                                  color: Colors.grey,
+                                style:
+                                    const TextStyle(
+                                  color:
+                                      Colors.grey,
                                 ),
                               ),
 
-                            if (signguName.isNotEmpty)
+                            if (signguName
+                                .isNotEmpty)
                               Text(
                                 signguName,
-                                style: const TextStyle(
-                                  color: Colors.grey,
+                                style:
+                                    const TextStyle(
+                                  color:
+                                      Colors.grey,
                                 ),
                               ),
 
-                            const SizedBox(height: 12),
+                            const SizedBox(
+                              height: 12,
+                            ),
 
                             // ------------------------------------------------
                             // 혼잡도
@@ -464,27 +596,35 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
                             Text(
                               '30일 평균 혼잡도 '
                               '${result.averageCongestion.toStringAsFixed(2)}',
-                              style: const TextStyle(
+                              style:
+                                  const TextStyle(
                                 fontSize: 13,
                               ),
                             ),
 
-                            const SizedBox(height: 5),
+                            const SizedBox(
+                              height: 5,
+                            ),
 
                             // ------------------------------------------------
                             // SNOB 점수
                             // ------------------------------------------------
 
                             Text(
-                              'SNOB ${result.snobScore.toStringAsFixed(2)}',
-                              style: const TextStyle(
+                              'SNOB '
+                              '${result.snobScore.toStringAsFixed(2)}',
+                              style:
+                                  const TextStyle(
                                 fontSize: 16,
                                 fontWeight:
-                                    FontWeight.bold,
+                                    FontWeight
+                                        .bold,
                               ),
                             ),
 
-                            const SizedBox(height: 10),
+                            const SizedBox(
+                              height: 10,
+                            ),
 
                             // ------------------------------------------------
                             // 일정 추가
@@ -492,21 +632,27 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
 
                             Align(
                               alignment:
-                                  Alignment.centerRight,
-                              child: TextButton.icon(
-                                onPressed: isAdded
-                                    ? null
-                                    : () {
-                                        _addToPlan(
-                                          result,
-                                        );
-                                      },
+                                  Alignment
+                                      .centerRight,
+
+                              child:
+                                  TextButton.icon(
+                                onPressed:
+                                    isAdded
+                                        ? null
+                                        : () {
+                                            _addToPlan(
+                                              result,
+                                            );
+                                          },
+
                                 icon: Icon(
                                   isAdded
                                       ? Icons.check
                                       : Icons.add,
                                   size: 18,
                                 ),
+
                                 label: Text(
                                   isAdded
                                       ? '추가됨'
