@@ -9,9 +9,9 @@ import 'snob/region_vector.dart';
 import 'snob/vector_generator.dart';
 
 Future<void> main() async {
-  print("========================================");
+  print("=======================================");
   print("SNOB RegionVector JSON 생성 시작");
-  print("========================================");
+  print("=======================================");
 
   // =====================================
   // 1. 관광지 API 호출
