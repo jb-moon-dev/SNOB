@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'snob_congestion.dart';
+import '../../../models/travel_plan.dart';
 
 class CourseResultScreen extends StatefulWidget {
   // 추천 지역명
@@ -16,7 +17,8 @@ class CourseResultScreen extends StatefulWidget {
   });
 
   @override
-  State<CourseResultScreen> createState() => _CourseResultScreenState();
+  State<CourseResultScreen> createState() =>
+      _CourseResultScreenState();
 }
 
 class _CourseResultScreenState extends State<CourseResultScreen> {
@@ -26,9 +28,21 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
 
   List<SnobCongestionResult> results = [];
 
+  // ============================================================
+  // 여행 일정
+  // ============================================================
+
+  late TravelPlan travelPlan;
+
   @override
   void initState() {
     super.initState();
+
+    // 현재 추천 지역으로 여행 일정 생성
+    travelPlan = TravelPlan.create(
+      regionName: widget.regionName,
+      dayCount: 1,
+    );
 
     _calculateSnob();
   }
@@ -109,11 +123,146 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
     }
   }
 
+  // ============================================================
+  // 일정에 관광지 추가
+  // ============================================================
+
+  void _addToPlan(SnobCongestionResult result) {
+    final spot = TravelSpot.fromMap(
+      spot: result.spot,
+      congestion: result.averageCongestion,
+      snobScore: result.snobScore,
+    );
+
+    travelPlan.addSpot(
+      day: 1,
+      spot: spot,
+    );
+
+    setState(() {});
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${spot.name}이(가) 일정에 추가됐어요.',
+        ),
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  }
+
+  // ============================================================
+  // 이미 일정에 추가됐는지 확인
+  // ============================================================
+
+  bool _isAdded(String spotName) {
+    return travelPlan.days
+        .expand((day) => day.spots)
+        .any((spot) => spot.name == spotName);
+  }
+
+  // ============================================================
+  // 현재 일정 보기
+  // ============================================================
+
+  void _showPlan() {
+    final spots = travelPlan.days.isNotEmpty
+        ? travelPlan.days.first.spots
+        : <TravelSpot>[];
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${widget.regionName} 일정',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${spots.length}곳',
+                      style: const TextStyle(
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 15),
+
+                if (spots.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(
+                      vertical: 25,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '아직 추가한 관광지가 없어요.',
+                        style: TextStyle(
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  ...spots.asMap().entries.map(
+                    (entry) {
+                      final index = entry.key;
+                      final spot = entry.value;
+
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: CircleAvatar(
+                          child: Text(
+                            '${index + 1}',
+                          ),
+                        ),
+                        title: Text(spot.name),
+                        subtitle: spot.category != null
+                            ? Text(spot.category!)
+                            : null,
+                      );
+                    },
+                  ),
+
+                const SizedBox(height: 10),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('코스 추천'),
+
+        // 일정 버튼
+        actions: [
+          if (travelPlan.totalSpotCount > 0)
+            IconButton(
+              icon: const Icon(
+                Icons.calendar_today_outlined,
+              ),
+              onPressed: _showPlan,
+            ),
+        ],
       ),
       body: _buildBody(),
     );
@@ -191,7 +340,8 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
             12,
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
             children: [
               const Text(
                 '추천 지역',
@@ -243,6 +393,9 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
 
               final signguName =
                   spot['signguNm']?.toString() ?? '';
+
+              // 일정에 이미 추가됐는지 확인
+              final isAdded = _isAdded(spotName);
 
               return Card(
                 margin: const EdgeInsets.only(
@@ -328,6 +481,37 @@ class _CourseResultScreenState extends State<CourseResultScreen> {
                                 fontSize: 16,
                                 fontWeight:
                                     FontWeight.bold,
+                              ),
+                            ),
+
+                            const SizedBox(height: 10),
+
+                            // ------------------------------------------------
+                            // 일정 추가
+                            // ------------------------------------------------
+
+                            Align(
+                              alignment:
+                                  Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: isAdded
+                                    ? null
+                                    : () {
+                                        _addToPlan(
+                                          result,
+                                        );
+                                      },
+                                icon: Icon(
+                                  isAdded
+                                      ? Icons.check
+                                      : Icons.add,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  isAdded
+                                      ? '추가됨'
+                                      : '일정에 추가',
+                                ),
                               ),
                             ),
                           ],
