@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- 인터넷 권한 필수 (카카오 지도 JS SDK 및 지도 타일 로드용) -->
+    <!-- 인터넷 권한 -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
@@ -8,14 +8,38 @@
         android:label="snob"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"
-        android:largeHeap="true"> <!-- 대용량 메모리 할당 옵션 추가 -->
+        android:largeHeap="true">
 
-        <!-- Kakao SDK App Key (Native App Key) -->
+        <!-- Kakao SDK App Key -->
         <meta-data
             android:name="com.kakao.sdk.AppKey"
             android:value="f5c2a76b9629d32baa7816b9320e1453"/>
 
+        <!-- ====================================================== -->
+        <!-- Kakao Login AuthCode Handler -->
+        <!-- ====================================================== -->
+
+        <activity
+            android:name="com.kakao.sdk.flutter.auth.AuthCodeHandlerActivity"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+
+                <data
+                    android:host="oauth"
+                    android:scheme="kakaof5c2a76b9629d32baa7816b9320e1453"/>
+            </intent-filter>
+
+        </activity>
+
+        <!-- ====================================================== -->
         <!-- Main Flutter Activity -->
+        <!-- ====================================================== -->
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -33,14 +57,6 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
-
-            <!-- 카카오 로그인 / SDK 커스텀 URL 스킴 (kakao + Native App Key) -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:host="oauth" android:scheme="kakaof5c2a76b9629d32baa7816b9320e1453" />
             </intent-filter>
 
         </activity>

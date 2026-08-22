@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../services/kakao_auth_service.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 
-import '../onboarding_screen.dart';
+import '../../services/kakao_auth_service.dart';
+import 'onboarding_screen.dart';
+import 'trip/personality_test/personality_test_screen.dart';
 
 class MyPageScreen extends StatefulWidget {
   const MyPageScreen({super.key});
@@ -63,6 +64,42 @@ class _MyPageScreenState extends State<MyPageScreen> {
   }
 
   // ============================================================
+  // 로그아웃 확인
+  // ============================================================
+
+  Future<void> _showLogoutDialog() async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('로그아웃'),
+          content: const Text(
+            '정말 로그아웃하시겠어요?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, false);
+              },
+              child: const Text('취소'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, true);
+              },
+              child: const Text('로그아웃'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldLogout == true) {
+      await _logout();
+    }
+  }
+
+  // ============================================================
   // 로그아웃
   // ============================================================
 
@@ -72,8 +109,6 @@ class _MyPageScreenState extends State<MyPageScreen> {
 
       if (!mounted) return;
 
-      // 로그인 화면으로 이동하면서
-      // 기존 화면 스택을 모두 제거
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
@@ -88,10 +123,40 @@ class _MyPageScreenState extends State<MyPageScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('로그아웃 중 문제가 발생했습니다.'),
+          content: Text(
+            '로그아웃 중 문제가 발생했습니다.',
+          ),
         ),
       );
     }
+  }
+
+  // ============================================================
+  // 준비 중 기능 안내
+  // ============================================================
+
+  void _showComingSoon(String title) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '$title 기능은 준비 중이에요.',
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // ============================================================
+  // 성향 테스트 다시하기
+  // ============================================================
+
+  void _startPersonalityTest() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const PersonalityTestScreen(),
+      ),
+    );
   }
 
   // ============================================================
@@ -208,66 +273,73 @@ class _MyPageScreenState extends State<MyPageScreen> {
 
                 const SizedBox(height: 12),
 
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: Colors.grey.shade200,
+                InkWell(
+                  borderRadius:
+                      BorderRadius.circular(20),
+                  onTap: () {
+                    _showComingSoon('여행 일정');
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Colors.grey.shade200,
+                      ),
+                      borderRadius:
+                          BorderRadius.circular(20),
                     ),
-                    borderRadius:
-                        BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    children: [
+                    child: Row(
+                      children: [
 
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius:
-                              BorderRadius.circular(14),
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius:
+                                BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.map_outlined,
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.map_outlined,
-                        ),
-                      ),
 
-                      const SizedBox(width: 14),
+                        const SizedBox(width: 14),
 
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                          children: [
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                            children: [
 
-                            Text(
-                              '현재 여행',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight:
-                                    FontWeight.bold,
+                              Text(
+                                '현재 여행',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight:
+                                      FontWeight.bold,
+                                ),
                               ),
-                            ),
 
-                            SizedBox(height: 5),
+                              SizedBox(height: 5),
 
-                            Text(
-                              '아직 만들어진 여행 일정이 없어요.',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey,
+                              Text(
+                                '아직 만들어진 여행 일정이 없어요.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
 
-                      const Icon(
-                        Icons.chevron_right,
-                        color: Colors.grey,
-                      ),
-                    ],
+                        const Icon(
+                          Icons.chevron_right,
+                          color: Colors.grey,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
 
@@ -327,9 +399,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton(
-                          onPressed: () {
-                            // 나중에 성향 테스트 다시 연결
-                          },
+                          onPressed: _startPersonalityTest,
                           child: const Text(
                             '성향 다시 검사',
                           ),
@@ -355,59 +425,66 @@ class _MyPageScreenState extends State<MyPageScreen> {
 
                 const SizedBox(height: 12),
 
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: Colors.grey.shade200,
+                InkWell(
+                  borderRadius:
+                      BorderRadius.circular(20),
+                  onTap: () {
+                    _showComingSoon('여행 기록');
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Colors.grey.shade200,
+                      ),
+                      borderRadius:
+                          BorderRadius.circular(20),
                     ),
-                    borderRadius:
-                        BorderRadius.circular(20),
-                  ),
-                  child: const Row(
-                    children: [
+                    child: const Row(
+                      children: [
 
-                      Icon(
-                        Icons.menu_book_outlined,
-                        size: 30,
-                        color: Colors.grey,
-                      ),
-
-                      SizedBox(width: 14),
-
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                          children: [
-
-                            Text(
-                              '여행 기록',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight:
-                                    FontWeight.bold,
-                              ),
-                            ),
-
-                            SizedBox(height: 5),
-
-                            Text(
-                              '완료한 여행이 여기에 기록돼요.',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
+                        Icon(
+                          Icons.menu_book_outlined,
+                          size: 30,
+                          color: Colors.grey,
                         ),
-                      ),
 
-                      Icon(
-                        Icons.chevron_right,
-                        color: Colors.grey,
-                      ),
-                    ],
+                        SizedBox(width: 14),
+
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                            children: [
+
+                              Text(
+                                '여행 기록',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight:
+                                      FontWeight.bold,
+                                ),
+                              ),
+
+                              SizedBox(height: 5),
+
+                              Text(
+                                '완료한 여행이 여기에 기록돼요.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        Icon(
+                          Icons.chevron_right,
+                          color: Colors.grey,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
 
@@ -440,7 +517,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                     color: Colors.grey,
                   ),
                   onTap: () {
-                    // 나중에 연결
+                    _showComingSoon('알림 설정');
                   },
                 ),
 
@@ -456,7 +533,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                     Icons.chevron_right,
                     color: Colors.grey,
                   ),
-                  onTap: _logout,
+                  onTap: _showLogoutDialog,
                 ),
 
                 const SizedBox(height: 20),
