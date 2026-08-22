@@ -12,7 +12,9 @@ import 'result_screen.dart';
 
 import 'package:snob/snob/user_vector.dart';
 import 'package:snob/snob/recommendation_engine.dart';
-import 'package:snob/snob/region_data.dart';
+import 'package:snob/snob/vector_generator.dart';
+
+import '../../../services/tourism_api_service.dart';
 
 
 class PersonalityTestScreen extends StatefulWidget {
@@ -98,9 +100,12 @@ class _PersonalityTestScreenState
 
 
 
-  void finishTest() {
+  Future<void> finishTest() async {
 
+    // =====================================
     // 1. 27개 유형 key 생성
+    // =====================================
+
     final type = TypeMatcher.match(
       city: scoreManager.city,
       nature: scoreManager.nature,
@@ -110,11 +115,21 @@ class _PersonalityTestScreenState
       healing: scoreManager.healing,
     );
 
-    // 2. 유형 데이터
-    final result = ResultRepository.getResult(type);
 
+    // =====================================
+    // 2. 유형 데이터
+    // =====================================
+
+    final result =
+        ResultRepository.getResult(type);
+
+
+    // =====================================
     // 3. 사용자 성향 벡터
-    final userVector = UserVector.fromScore(
+    // =====================================
+
+    final userVector =
+        UserVector.fromScore(
       cityScore: scoreManager.city,
       natureScore: scoreManager.nature,
       famousScore: scoreManager.famous,
@@ -123,23 +138,104 @@ class _PersonalityTestScreenState
       healingScore: scoreManager.healing,
     );
 
-    // 4. RecommendationEngine이 고른 지역
-    final recommendedRegion =
-        RecommendationEngine.recommendRandomRegion(
-          userVector,
-          regions,
-        );
 
-    // 5. 결과 화면
+    // =====================================
+    // 4. 관광지 전체 데이터 가져오기
+    // =====================================
+
+    final spots =
+        await TourismApiService
+            .getAllTourismSpots();
+
+
+    if (spots.isEmpty) {
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "추천할 관광지 데이터가 없습니다.",
+          ),
+        ),
+      );
+
+      return;
+    }
+
+
+    // =====================================
+    // 5. 관광지 → SpotVector
+    // =====================================
+
+    final spotVectors =
+        spots
+            .map(
+              (spot) =>
+                  VectorGenerator
+                      .generateSpotVector(
+                spot,
+              ),
+            )
+            .toList();
+
+
+    // =====================================
+    // 6. SpotVector → RegionVector
+    // =====================================
+
+    final regions =
+        VectorGenerator.generateRegions(
+      spotVectors,
+    );
+
+
+    if (regions.isEmpty) {
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "추천할 지역 데이터가 없습니다.",
+          ),
+        ),
+      );
+
+      return;
+    }
+
+
+    // =====================================
+    // 7. RecommendationEngine
+    //    Top 3 중 랜덤으로 1개 선택
+    // =====================================
+
+    final recommendedRegion =
+        RecommendationEngine
+            .recommendRandomRegion(
+      userVector,
+      regions,
+    );
+
+
+    // =====================================
+    // 8. 결과 화면
+    // =====================================
+
+    if (!mounted) return;
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => ResultScreen(
           personalityType: result.title,
-          recommendedRegion: recommendedRegion.regionName,
+          recommendedRegion:
+              recommendedRegion.regionName,
         ),
       ),
     );
+
   }
 
 
@@ -242,7 +338,11 @@ class _PersonalityTestScreenState
 
 
 
+
+
             const SizedBox(height:30),
+
+
 
 
 
@@ -281,7 +381,11 @@ class _PersonalityTestScreenState
 
 
 
+
+
             const SizedBox(height:40),
+
+
 
 
 
@@ -323,6 +427,8 @@ class _PersonalityTestScreenState
 
 
 
+
+
                   child:
 
                   SizedBox(
@@ -332,6 +438,8 @@ class _PersonalityTestScreenState
                     width:
 
                     double.infinity,
+
+
 
 
 
@@ -402,7 +510,10 @@ class _PersonalityTestScreenState
 
 
 
+
+
                       },
+
 
 
 
@@ -431,7 +542,12 @@ class _PersonalityTestScreenState
 
 
 
+
+
                     ),
+
+
+
 
 
 
@@ -446,6 +562,8 @@ class _PersonalityTestScreenState
 
 
 
+
+
                 );
 
 
@@ -453,6 +571,8 @@ class _PersonalityTestScreenState
 
 
               }).toList(),
+
+
 
 
 
@@ -479,8 +599,6 @@ class _PersonalityTestScreenState
 
 
       ),
-
-
 
 
 

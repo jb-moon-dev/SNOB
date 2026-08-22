@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/kakao_auth_service.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 
-import '../onboarding_screen.dart';
+import 'package:snob/screens/onboarding_screen.dart';
 
 class MyPageScreen extends StatefulWidget {
   const MyPageScreen({super.key});

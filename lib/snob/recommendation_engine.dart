@@ -4,12 +4,11 @@ import 'user_vector.dart';
 import 'region_vector.dart';
 
 
-
 class RecommendationEngine {
 
 
   // =====================================
-  // Top3 중 랜덤 추천
+  // Top 3 중 랜덤 추천
   // =====================================
 
   static RegionVector recommendRandomRegion(
@@ -17,48 +16,43 @@ class RecommendationEngine {
     List<RegionVector> regions,
   ) {
 
-
-    if(regions.isEmpty){
+    if (regions.isEmpty) {
 
       throw Exception(
-        "추천 가능한 지역이 없습니다."
+        "추천 가능한 지역이 없습니다.",
       );
 
     }
 
 
-
-    final ranked =
-        rankRegions(
-          user,
-          regions,
-        );
-
+    // 지역 유사도 순위 계산
+    final ranked = rankRegions(
+      user,
+      regions,
+    );
 
 
-    final top3 =
-        ranked.take(3).toList();
+    // 상위 3개
+    final top3 = ranked
+        .take(min(3, ranked.length))
+        .toList();
 
 
+    // 상위 3개 중 랜덤
+    final random = Random();
 
-    final random =
-        Random();
+    final recommended =
+        top3[random.nextInt(top3.length)];
 
 
-
-    return top3[
-      random.nextInt(top3.length)
-    ];
+    // 최종 추천 지역 반환
+    return recommended;
 
   }
 
 
-
-
-
-
   // =====================================
-  // 점수 계산 후 정렬
+  // 지역 유사도 순위 계산
   // =====================================
 
   static List<RegionVector> rankRegions(
@@ -66,45 +60,31 @@ class RecommendationEngine {
     List<RegionVector> regions,
   ) {
 
-
     final result =
         List<RegionVector>.from(regions);
 
 
+    result.sort((a, b) {
 
-    result.sort((a,b){
+      final scoreA = similarity(
+        user,
+        a,
+      );
 
-
-      final scoreA =
-          similarity(
-            user,
-            a,
-          );
-
-
-      final scoreB =
-          similarity(
-            user,
-            b,
-          );
-
+      final scoreB = similarity(
+        user,
+        b,
+      );
 
 
       return scoreB.compareTo(scoreA);
 
-
     });
-
 
 
     return result;
 
-
   }
-
-
-
-
 
 
   // =====================================
@@ -114,44 +94,28 @@ class RecommendationEngine {
   static double similarity(
     UserVector user,
     RegionVector region,
-  ){
+  ) {
+
+    final natureDistance =
+        user.nature - region.nature;
+
+    final hiddenDistance =
+        user.hidden - region.hidden;
+
+    final healingDistance =
+        user.healing - region.healing;
 
 
-    double distance = 0;
+    final distance = sqrt(
+      pow(natureDistance, 2) +
+      pow(hiddenDistance, 2) +
+      pow(healingDistance, 2),
+    );
 
 
-
-    distance +=
-        pow(
-          user.nature - region.nature,
-          2,
-        );
-
-
-
-    distance +=
-        pow(
-          user.hidden - region.hidden,
-          2,
-        );
-
-
-
-    distance +=
-        pow(
-          user.healing - region.healing,
-          2,
-        );
-
-
-
-
-    return 100 -
-        sqrt(distance);
-
-
+    // 유사할수록 높은 점수
+    return 100 - distance;
 
   }
-
 
 }
