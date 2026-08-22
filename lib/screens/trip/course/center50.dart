@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import 'converter.dart';
+import 'result_screen.dart';
 
 class Center50Screen extends StatefulWidget {
   // RegionVector에서 넘어온 추천 지역명
@@ -28,8 +29,6 @@ class _Center50ScreenState extends State<Center50Screen> {
   bool isLoading = true;
 
   String? errorMessage;
-
-  List<Map<String, dynamic>> spots = [];
 
   @override
   void initState() {
@@ -61,14 +60,16 @@ class _Center50ScreenState extends State<Center50Screen> {
         );
       }
 
+      print('');
       print('변환 결과');
       print('areaCd: ${regionCode.areaCd}');
       print('sigunguCd: ${regionCode.sigunguCd}');
 
       // --------------------------------------------------
-      // 2. 조회할 날짜 결정
+      // 2. 조회 기준월 결정
       //
-      // 현재 달이 아니라 "이전 달" 사용
+      // 현재 달이 아니라 이전 달 사용
+      //
       // 예:
       // 2026년 8월 → 202607
       // 2026년 1월 → 202512
@@ -76,21 +77,29 @@ class _Center50ScreenState extends State<Center50Screen> {
 
       final now = DateTime.now();
 
-      DateTime targetDate;
+      late DateTime targetDate;
 
       if (now.month == 1) {
-        targetDate = DateTime(now.year - 1, 12);
+        targetDate = DateTime(
+          now.year - 1,
+          12,
+        );
       } else {
-        targetDate = DateTime(now.year, now.month - 1);
+        targetDate = DateTime(
+          now.year,
+          now.month - 1,
+        );
       }
 
       final baseYm =
-          '${targetDate.year}${targetDate.month.toString().padLeft(2, '0')}';
+          '${targetDate.year}'
+          '${targetDate.month.toString().padLeft(2, '0')}';
 
+      print('');
       print('조회 기준월: $baseYm');
 
       // --------------------------------------------------
-      // 3. API 직접 호출
+      // 3. 관광지 API 호출
       // --------------------------------------------------
 
       final uri = Uri.parse(
@@ -133,43 +142,48 @@ class _Center50ScreenState extends State<Center50Screen> {
       final responseData = decoded['response'];
 
       if (responseData is! Map) {
-        throw Exception('API response 형식이 올바르지 않습니다.');
+        throw Exception(
+          'API response 형식이 올바르지 않습니다.',
+        );
       }
 
       final body = responseData['body'];
 
       if (body is! Map) {
-        throw Exception('API body 형식이 올바르지 않습니다.');
+        throw Exception(
+          'API body 형식이 올바르지 않습니다.',
+        );
       }
 
       final itemsData = body['items'];
 
-      // 관광지가 없는 경우
-      if (itemsData == null || itemsData == '') {
-        setState(() {
-          spots = [];
-          isLoading = false;
-        });
+      // --------------------------------------------------
+      // 4. 데이터 없음
+      // --------------------------------------------------
 
-        print('조회된 데이터가 없습니다.');
-        return;
+      if (itemsData == null || itemsData == '') {
+        throw Exception(
+          '조회된 관광지가 없습니다.',
+        );
       }
 
       if (itemsData is! Map) {
-        throw Exception('items 형식이 올바르지 않습니다.');
+        throw Exception(
+          'items 형식이 올바르지 않습니다.',
+        );
       }
 
       final itemData = itemsData['item'];
 
       if (itemData == null || itemData == '') {
-        setState(() {
-          spots = [];
-          isLoading = false;
-        });
-
-        print('조회된 관광지가 없습니다.');
-        return;
+        throw Exception(
+          '조회된 관광지가 없습니다.',
+        );
       }
+
+      // --------------------------------------------------
+      // 5. 관광지 데이터 List 변환
+      // --------------------------------------------------
 
       List<Map<String, dynamic>> allSpots;
 
@@ -184,7 +198,9 @@ class _Center50ScreenState extends State<Center50Screen> {
           Map<String, dynamic>.from(itemData),
         ];
       } else {
-        throw Exception('관광지 데이터 형식이 올바르지 않습니다.');
+        throw Exception(
+          '관광지 데이터 형식이 올바르지 않습니다.',
+        );
       }
 
       print('');
@@ -194,7 +210,7 @@ class _Center50ScreenState extends State<Center50Screen> {
       print('========================================');
 
       // --------------------------------------------------
-      // 4. 숙박 제거
+      // 6. 숙박 제거 → 최대 50개
       // --------------------------------------------------
 
       final filteredSpots = allSpots
@@ -212,18 +228,7 @@ class _Center50ScreenState extends State<Center50Screen> {
       print('========================================');
 
       // --------------------------------------------------
-      // 5. 화면에 저장
-      // --------------------------------------------------
-
-      if (!mounted) return;
-
-      setState(() {
-        spots = filteredSpots;
-        isLoading = false;
-      });
-
-      // --------------------------------------------------
-      // 6. 확인용 출력
+      // 7. 관광지 데이터 확인
       // --------------------------------------------------
 
       for (int i = 0; i < filteredSpots.length; i++) {
@@ -232,13 +237,51 @@ class _Center50ScreenState extends State<Center50Screen> {
         print('');
         print('[${i + 1}] ${spot['hubTatsNm']}');
         print('관광지 코드 : ${spot['hubTatsCd']}');
-        print('지역        : ${spot['areaNm']} (${spot['areaCd']})');
-        print('시군구      : ${spot['signguNm']} (${spot['signguCd']})');
-        print('대분류      : ${spot['hubCtgryLclsNm']}');
-        print('중분류      : ${spot['hubCtgryMclsNm']}');
-        print('순위        : ${spot['hubRank']}');
-        print('좌표        : ${spot['mapX']}, ${spot['mapY']}');
+        print(
+          '지역        : '
+          '${spot['areaNm']} (${spot['areaCd']})',
+        );
+        print(
+          '시군구      : '
+          '${spot['signguNm']} (${spot['signguCd']})',
+        );
+        print(
+          '대분류      : '
+          '${spot['hubCtgryLclsNm']}',
+        );
+        print(
+          '중분류      : '
+          '${spot['hubCtgryMclsNm']}',
+        );
+        print(
+          '순위        : '
+          '${spot['hubRank']}',
+        );
+        print(
+          '좌표        : '
+          '${spot['mapX']}, ${spot['mapY']}',
+        );
       }
+
+      // --------------------------------------------------
+      // 8. CourseResultScreen으로 이동
+      //
+      // Center50Screen은 사용자에게 관광지 목록을
+      // 보여주는 화면이 아니라 중간 처리 화면이므로
+      // 결과를 가져오면 바로 다음 화면으로 이동한다.
+      // --------------------------------------------------
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CourseResultScreen(
+            regionName: widget.regionName,
+            spots: filteredSpots,
+          ),
+        ),
+      );
 
       print('');
       print('========================================');
@@ -263,56 +306,81 @@ class _Center50ScreenState extends State<Center50Screen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('추천 관광지'),
-      ),
       body: _buildBody(),
     );
   }
 
   Widget _buildBody() {
+    // --------------------------------------------------
+    // 로딩
+    // --------------------------------------------------
+
     if (isLoading) {
       return const Center(
-        child: CircularProgressIndicator(),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text(
+              '추천 관광지를 찾고 있어요...',
+              style: TextStyle(
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
       );
     }
+
+    // --------------------------------------------------
+    // 오류
+    // --------------------------------------------------
 
     if (errorMessage != null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(20),
-          child: Text(
-            errorMessage!,
-            textAlign: TextAlign.center,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                '관광지를 불러오지 못했어요.',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              Text(
+                errorMessage!,
+                textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 20),
+
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    isLoading = true;
+                    errorMessage = null;
+                  });
+
+                  _loadCenter50();
+                },
+                child: const Text('다시 시도'),
+              ),
+            ],
           ),
         ),
       );
     }
 
-    if (spots.isEmpty) {
-      return const Center(
-        child: Text('조회된 관광지가 없습니다.'),
-      );
-    }
-
-    return ListView.builder(
-      itemCount: spots.length,
-      itemBuilder: (context, index) {
-        final spot = spots[index];
-
-        return ListTile(
-          leading: CircleAvatar(
-            child: Text('${index + 1}'),
-          ),
-          title: Text(
-            spot['hubTatsNm']?.toString() ?? '이름 없음',
-          ),
-          subtitle: Text(
-            '${spot['hubCtgryMclsNm'] ?? ''}\n'
-            '${spot['signguNm'] ?? ''}',
-          ),
-        );
-      },
-    );
+    // 정상적으로 처리된 경우에는
+    // Navigator.pushReplacement가 실행되므로
+    // 이 화면이 계속 표시될 일은 없다.
+    return const SizedBox.shrink();
   }
 }

@@ -11,7 +11,6 @@ import 'result_data.dart';
 import 'result_screen.dart';
 
 import 'package:snob/snob/user_vector.dart';
-import 'package:snob/snob/region_vector.dart';
 import 'package:snob/snob/recommendation_engine.dart';
 import 'package:snob/snob/region_data.dart';
 
