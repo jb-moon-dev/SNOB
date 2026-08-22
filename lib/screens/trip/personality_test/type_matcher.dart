@@ -99,7 +99,7 @@ class TypeMatcher {
 
     if(total == 0){
 
-      return "normal";
+      return "balance";
 
     }
 
@@ -118,7 +118,7 @@ class TypeMatcher {
 
     else if(hiddenRatio < 0.666){
 
-      return "normal";
+      return "balance";
 
     }
 
