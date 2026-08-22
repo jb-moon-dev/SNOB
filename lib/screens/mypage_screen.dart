@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 
-import '../onboarding_screen.dart';
+import 'onboarding_screen.dart';
+import '../services/kakao_auth_service.dart';
+import '../screens/trip/personality_test/personality_test_screen.dart';
 
 class MyPageScreen extends StatefulWidget {
   const MyPageScreen({super.key});
