@@ -4,77 +4,82 @@ import 'package:http/http.dart' as http;
 import 'package:snob/snob/tourism_spot.dart';
 
 class TourismApiService {
+  // ============================================================
+  // API 설정
+  // ============================================================
+
   static const String serviceKey =
       "cbea666b85656aa336898b2d32bfee6f7d6fdad29e7c840109a41b9bf449c8a9";
 
   static const String baseUrl =
       "https://apis.data.go.kr/B551011/KorService2";
 
-  // =====================================
-  // 공통 API 응답에서 item 추출
-  // =====================================
+  // ============================================================
+  // API 응답에서 item 추출
+  // ============================================================
 
   static List<dynamic> _extractItems(dynamic data) {
-    try {
-      if (data is! Map) {
-        return [];
-      }
-
-      final response = data["response"];
-
-      if (response is! Map) {
-        return [];
-      }
-
-      final body = response["body"];
-
-      if (body is! Map) {
-        return [];
-      }
-
-      final items = body["items"];
-
-      if (items is! Map) {
-        return [];
-      }
-
-      final item = items["item"];
-
-      if (item == null) {
-        return [];
-      }
-
-      // item이 비어있는 문자열로 오는 경우
-      if (item is String) {
-        return [];
-      }
-
-      // 관광지가 1개인 경우
-      if (item is Map) {
-        return [item];
-      }
-
-      // 관광지가 여러 개인 경우
-      if (item is List) {
-        return item;
-      }
-
-      return [];
-    } catch (e) {
-      print("API item 추출 실패 : $e");
+    if (data is! Map) {
       return [];
     }
+
+    final response = data["response"];
+
+    if (response is! Map) {
+      return [];
+    }
+
+    final body = response["body"];
+
+    if (body is! Map) {
+      return [];
+    }
+
+    final items = body["items"];
+
+    if (items is! Map) {
+      return [];
+    }
+
+    final item = items["item"];
+
+    if (item == null) {
+      return [];
+    }
+
+    // API가 데이터가 없을 때 ""로 반환하는 경우
+    if (item is String) {
+      return [];
+    }
+
+    // 데이터가 1개인 경우
+    if (item is Map) {
+      return [item];
+    }
+
+    // 데이터가 여러 개인 경우
+    if (item is List) {
+      return item;
+    }
+
+    return [];
   }
 
-  // =====================================
+  // ============================================================
   // 시도 코드 조회
-  // ldongCode2
-  // =====================================
+  //
+  // 반환 예:
+  // 11
+  // 26
+  // 27
+  // ...
+  // 50
+  // ============================================================
 
   static Future<List<String>> getRegionCodes() async {
-    final List<String> codes = [];
+    final Set<String> codes = {};
 
-    final url = Uri.parse(
+    final Uri url = Uri.parse(
       "$baseUrl/ldongCode2"
       "?serviceKey=$serviceKey"
       "&MobileOS=AND"
@@ -84,6 +89,8 @@ class TourismApiService {
     );
 
     try {
+      print("시도 코드 조회 중...");
+
       final response = await http.get(url);
 
       if (response.statusCode != 200) {
@@ -93,86 +100,135 @@ class TourismApiService {
         return [];
       }
 
-      final data = json.decode(response.body);
+      final dynamic data = json.decode(response.body);
 
-      final items = _extractItems(data);
+      final List<dynamic> items =
+          _extractItems(data);
 
-      for (final item in items) {
+      for (final dynamic item in items) {
         if (item is! Map) {
           continue;
         }
 
-        final code = item["code"]?.toString();
+        final String code =
+            item["code"]?.toString().trim() ?? "";
 
-        if (code != null && code.isNotEmpty) {
+        // 시도 코드는 2자리만 사용
+        if (RegExp(r'^\d{2}$').hasMatch(code)) {
           codes.add(code);
         }
       }
     } catch (e) {
       print("시도 코드 조회 실패 : $e");
+      return [];
     }
 
-    return codes;
+    final List<String> result =
+        codes.toList()..sort();
+
+    return result;
   }
 
-  // =====================================
+  // ============================================================
   // 시군구 코드 조회
-  // =====================================
+  //
+  // regionCode:
+  // 11 → 서울
+  // 26 → 부산
+  // 36 → 세종
+  //
+  // 반환 예:
+  // 11110
+  // 11140
+  // ...
+  //
+  // ★ 핵심
+  // 반드시 해당 시도의 코드만 가져온다.
+  // ============================================================
 
   static Future<List<String>> getSigunguCodes(
     String regionCode,
   ) async {
-    final List<String> codes = [];
+    final Set<String> codes = {};
 
-    final url = Uri.parse(
+    final String regnCd =
+        regionCode.trim().padLeft(2, "0");
+
+    final Uri url = Uri.parse(
       "$baseUrl/ldongCode2"
       "?serviceKey=$serviceKey"
       "&MobileOS=AND"
       "&MobileApp=SNOB"
       "&_type=json"
       "&numOfRows=100"
-      "&lDongRegnCd=$regionCode",
+      "&lDongRegnCd=$regnCd",
     );
 
     try {
+      print(
+        "  시군구 코드 조회 : $regnCd",
+      );
+
       final response = await http.get(url);
 
       if (response.statusCode != 200) {
         print(
-          "시군구 코드 API 오류 : "
-          "$regionCode / ${response.statusCode}",
+          "  시군구 코드 API 오류 : "
+          "${response.statusCode}",
         );
         return [];
       }
 
-      final data = json.decode(response.body);
+      final dynamic data = json.decode(response.body);
 
-      final items = _extractItems(data);
+      final List<dynamic> items =
+          _extractItems(data);
 
-      for (final item in items) {
+      for (final dynamic item in items) {
         if (item is! Map) {
           continue;
         }
 
-        final code = item["code"]?.toString();
+        final String code =
+            item["code"]?.toString().trim() ?? "";
 
-        if (code != null && code.isNotEmpty) {
-          codes.add(code);
+        // 시군구 코드는 5자리
+        if (!RegExp(r'^\d{5}$').hasMatch(code)) {
+          continue;
         }
+
+        // 반드시 현재 시도 코드로 시작해야 한다.
+        if (!code.startsWith(regnCd)) {
+          continue;
+        }
+
+        codes.add(code);
       }
     } catch (e) {
       print(
-        "시군구 코드 조회 실패 : "
-        "$regionCode / $e",
+        "  시군구 코드 조회 실패 : "
+        "$regnCd / $e",
       );
+      return [];
     }
 
-    return codes;
+    final List<String> result =
+        codes.toList()..sort();
+
+    return result;
   }
 
-  // =====================================
-  // 법정동 기반 관광지 조회
-  // =====================================
+  // ============================================================
+  // 특정 시군구의 관광지 조회
+  //
+  // ★ 여기서는 지역명을 만들지 않는다.
+  //
+  // API에서 받은
+  // lDongRegnCd
+  // lDongSignguCd
+  //
+  // 를 그대로 TourismSpot에 저장한다.
+  // ============================================================
 
   static Future<List<TourismSpot>>
       getTourismSpotsByLegalDong(
@@ -181,10 +237,16 @@ class TourismApiService {
   ) async {
     final List<TourismSpot> spots = [];
 
+    final String regionCode =
+        regnCd.trim().padLeft(2, "0");
+
+    final String sigunguCode =
+        signguCd.trim().padLeft(5, "0");
+
     int pageNo = 1;
 
     while (true) {
-      final url = Uri.parse(
+      final Uri url = Uri.parse(
         "$baseUrl/areaBasedList2"
         "?serviceKey=$serviceKey"
         "&MobileOS=AND"
@@ -193,18 +255,19 @@ class TourismApiService {
         "&numOfRows=100"
         "&pageNo=$pageNo"
         "&contentTypeId=12"
-        "&lDongRegnCd=$regnCd"
-        "&lDongSignguCd=$signguCd",
+        "&lDongRegnCd=$regionCode"
+        "&lDongSignguCd=$sigunguCode",
       );
 
       try {
         print(
           "    관광지 조회 : "
-          "$regnCd / $signguCd "
+          "$regionCode / $sigunguCode "
           "(page $pageNo)",
         );
 
-        final response = await http.get(url);
+        final response =
+            await http.get(url);
 
         if (response.statusCode != 200) {
           print(
@@ -214,24 +277,27 @@ class TourismApiService {
           break;
         }
 
-        final data = json.decode(response.body);
+        final dynamic data =
+            json.decode(response.body);
 
-        final items = _extractItems(data);
+        final List<dynamic> items =
+            _extractItems(data);
 
-        // 더 이상 데이터가 없는 경우
         if (items.isEmpty) {
           break;
         }
 
         int addedCount = 0;
 
-        for (final item in items) {
+        for (final dynamic item in items) {
+          // ★ 반드시 Map인지 확인
           if (item is! Map) {
             continue;
           }
 
           try {
-            final spot = TourismSpot(
+            final TourismSpot spot =
+                TourismSpot(
               contentId:
                   item["contentid"]?.toString() ?? "",
 
@@ -244,27 +310,53 @@ class TourismApiService {
               contentTypeId:
                   item["contenttypeid"]?.toString() ?? "",
 
+              // ★ API가 준 지역코드를 우선 사용
+              // 값이 없으면 현재 조회 중인 코드 사용
               lDongRegnCd:
-                  item["lDongRegnCd"]?.toString() ?? "",
+                  item["lDongRegnCd"]
+                          ?.toString()
+                          .trim()
+                          .isNotEmpty ==
+                      true
+                      ? item["lDongRegnCd"]
+                          .toString()
+                          .trim()
+                      : regionCode,
 
               lDongSignguCd:
-                  item["lDongSignguCd"]?.toString() ?? "",
+                  item["lDongSignguCd"]
+                          ?.toString()
+                          .trim()
+                          .isNotEmpty ==
+                      true
+                      ? item["lDongSignguCd"]
+                          .toString()
+                          .trim()
+                      : sigunguCode,
 
               lclsSystm1:
-                  item["lclsSystm1"]?.toString() ?? "",
+                  item["lclsSystm1"]
+                          ?.toString() ??
+                      "",
 
               lclsSystm2:
-                  item["lclsSystm2"]?.toString() ?? "",
+                  item["lclsSystm2"]
+                          ?.toString() ??
+                      "",
 
               lclsSystm3:
-                  item["lclsSystm3"]?.toString() ?? "",
+                  item["lclsSystm3"]
+                          ?.toString() ??
+                      "",
 
               modifiedTime:
-                  item["modifiedtime"]?.toString() ?? "",
+                  item["modifiedtime"]
+                          ?.toString() ??
+                      "",
             );
 
-            // 관광지 이름이 없는 잘못된 데이터는 제외
-            if (spot.title.isEmpty) {
+            // 관광지 이름이 없는 데이터 제외
+            if (spot.title.trim().isEmpty) {
               continue;
             }
 
@@ -281,7 +373,7 @@ class TourismApiService {
           "      → $addedCount개",
         );
 
-        // 100개보다 적게 왔다면 마지막 페이지
+        // 마지막 페이지
         if (items.length < 100) {
           break;
         }
@@ -289,7 +381,7 @@ class TourismApiService {
         pageNo++;
       } catch (e) {
         print(
-          "API 데이터 구조 확인 실패 : $e",
+          "    API 데이터 처리 실패 : $e",
         );
         break;
       }
@@ -302,24 +394,45 @@ class TourismApiService {
     return spots;
   }
 
-  // =====================================
+  // ============================================================
   // 전국 관광지 조회
-  // =====================================
+  //
+  // 결과:
+  //
+  // TourismSpot {
+  //   title
+  //   address
+  //   lDongRegnCd
+  //   lDongSignguCd
+  //   lclsSystm1
+  //   lclsSystm2
+  //   lclsSystm3
+  // }
+  //
+  // ★ 여기서는 regionName을 만들지 않는다.
+  // ============================================================
 
   static Future<List<TourismSpot>>
       getAllTourismSpots() async {
     final List<TourismSpot> allSpots = [];
 
     print("");
-    print("==================================================");
-    print("SNOB 전국 관광지 데이터 수집 시작");
-    print("==================================================");
+    print(
+      "==================================================",
+    );
+    print(
+      "SNOB 전국 관광지 데이터 수집 시작",
+    );
+    print(
+      "==================================================",
+    );
 
-    // -------------------------------------
-    // 1. 시도 코드 조회
-    // -------------------------------------
+    // ==========================================================
+    // 1. 시도 코드
+    // ==========================================================
 
-    final regions = await getRegionCodes();
+    final List<String> regions =
+        await getRegionCodes();
 
     print("");
     print(
@@ -327,18 +440,23 @@ class TourismApiService {
     );
 
     if (regions.isEmpty) {
-      print("❌ 시도 데이터를 가져오지 못했습니다.");
+      print(
+        "❌ 시도 데이터를 가져오지 못했습니다.",
+      );
       return [];
     }
 
-    // -------------------------------------
-    // 2. 시도별 관광지 조회
-    // -------------------------------------
+    // ==========================================================
+    // 2. 시도별
+    // ==========================================================
 
-    for (int regionIndex = 0;
-        regionIndex < regions.length;
-        regionIndex++) {
-      final region = regions[regionIndex];
+    for (
+      int regionIndex = 0;
+      regionIndex < regions.length;
+      regionIndex++
+    ) {
+      final String region =
+          regions[regionIndex];
 
       print("");
       print(
@@ -346,11 +464,11 @@ class TourismApiService {
         "code=$region",
       );
 
-      // -----------------------------------
-      // 시군구 코드 조회
-      // -----------------------------------
+      // ========================================================
+      // 시군구 코드
+      // ========================================================
 
-      final sigungus =
+      final List<String> sigungus =
           await getSigunguCodes(region);
 
       print(
@@ -364,21 +482,24 @@ class TourismApiService {
         continue;
       }
 
-      // -----------------------------------
-      // 시군구별 관광지 조회
-      // -----------------------------------
+      // ========================================================
+      // 시군구별 관광지
+      // ========================================================
 
-      for (int sigunguIndex = 0;
-          sigunguIndex < sigungus.length;
-          sigunguIndex++) {
-        final sigungu = sigungus[sigunguIndex];
+      for (
+        int sigunguIndex = 0;
+        sigunguIndex < sigungus.length;
+        sigunguIndex++
+      ) {
+        final String sigungu =
+            sigungus[sigunguIndex];
 
         print(
           "  [${sigunguIndex + 1}/${sigungus.length}] "
           "$region / $sigungu",
         );
 
-        final spots =
+        final List<TourismSpot> spots =
             await getTourismSpotsByLegalDong(
           region,
           sigungu,
@@ -388,18 +509,50 @@ class TourismApiService {
       }
     }
 
-    // -------------------------------------
-    // 3. 최종 결과
-    // -------------------------------------
+    // ==========================================================
+    // 3. contentId 기준 중복 제거
+    //
+    // 같은 관광지가 여러 번 들어오는 경우 방지
+    // ==========================================================
+
+    final Map<String, TourismSpot>
+        uniqueSpots = {};
+
+    for (final TourismSpot spot
+        in allSpots) {
+      if (spot.contentId.trim().isEmpty) {
+        continue;
+      }
+
+      uniqueSpots[spot.contentId] = spot;
+    }
+
+    final List<TourismSpot> result =
+        uniqueSpots.values.toList();
+
+    // ==========================================================
+    // 4. 결과
+    // ==========================================================
 
     print("");
-    print("==================================================");
-    print("SNOB 전국 관광지 데이터 수집 완료");
-    print("==================================================");
     print(
-      "전체 관광지 : ${allSpots.length}개",
+      "==================================================",
+    );
+    print(
+      "SNOB 전국 관광지 데이터 수집 완료",
+    );
+    print(
+      "==================================================",
     );
 
-    return allSpots;
+    print(
+      "API 관광지 : ${allSpots.length}개",
+    );
+
+    print(
+      "중복 제거 후 : ${result.length}개",
+    );
+
+    return result;
   }
 }
