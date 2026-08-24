@@ -30,10 +30,16 @@ class SnobCongestion {
   /// 30일 평균 혼잡도를 계산하고
   /// SNOB 점수를 계산한다.
   ///
-  /// SNOB 점수:
-  ///     100 - 평균 혼잡도
+  /// 혼잡도 데이터가 없는 관광지도 목록에서 제외하지 않는다.
   ///
-  /// 혼잡도가 낮을수록 SNOB 점수가 높다.
+  /// 혼잡도 데이터가 있는 경우:
+  ///     SNOB 점수 = 100 - 평균 혼잡도
+  ///
+  /// 혼잡도 데이터가 없는 경우:
+  ///     평균 혼잡도 = 50
+  ///     SNOB 점수 = 50
+  ///
+  /// 즉, 혼잡도 정보가 없는 관광지는 중립적인 점수를 부여한다.
   Future<List<SnobCongestionResult>> calculate(
     List<Map<String, dynamic>> spots,
   ) async {
@@ -59,6 +65,10 @@ class SnobCongestion {
         print('관광지 : $spotName');
         print('========================================');
 
+        // 기본값
+        double averageCongestion = 50.0;
+        double snobScore = 50.0;
+
         // 해당 관광지의 30일 예측 혼잡도 조회
         final congestionData = await _service.getCongestion(
           areaCd: areaCd,
@@ -67,38 +77,49 @@ class SnobCongestion {
           numOfRows: 30,
         );
 
-        if (congestionData.isEmpty) {
-          print('혼잡도 데이터 없음: $spotName');
-          continue;
+        // 혼잡도 데이터가 있는 경우
+        if (congestionData.isNotEmpty) {
+          final rates = congestionData
+              .map((data) {
+                final value = data['cnctrRate'];
+
+                if (value == null) {
+                  return null;
+                }
+
+                return double.tryParse(value.toString());
+              })
+              .whereType<double>()
+              .toList();
+
+          // 유효한 혼잡도 데이터가 있는 경우에만 계산
+          if (rates.isNotEmpty) {
+            averageCongestion =
+                rates.reduce((a, b) => a + b) / rates.length;
+
+            // 혼잡도가 낮을수록 SNOB 점수가 높도록 계산
+            snobScore =
+                (100.0 - averageCongestion).clamp(0.0, 100.0);
+
+            print('데이터 개수 : ${rates.length}');
+            print(
+              '30일 평균 혼잡도 : '
+              '${averageCongestion.toStringAsFixed(2)}',
+            );
+            print(
+              'SNOB 점수 : '
+              '${snobScore.toStringAsFixed(2)}',
+            );
+          } else {
+            print('유효한 혼잡도 데이터 없음');
+            print('중립값 적용 → 혼잡도 50 / SNOB 50');
+          }
+        } else {
+          print('혼잡도 데이터 없음');
+          print('중립값 적용 → 혼잡도 50 / SNOB 50');
         }
 
-        // cnctrRate 숫자만 추출
-        final rates = congestionData
-            .map((data) {
-              final value = data['cnctrRate'];
-
-              if (value == null) {
-                return null;
-              }
-
-              return double.tryParse(value.toString());
-            })
-            .whereType<double>()
-            .toList();
-
-        if (rates.isEmpty) {
-          print('유효한 혼잡도 데이터 없음: $spotName');
-          continue;
-        }
-
-        // 실제 반환된 데이터 개수를 기준으로 평균 계산
-        final averageCongestion =
-            rates.reduce((a, b) => a + b) / rates.length;
-
-        // 혼잡도가 낮을수록 SNOB 점수가 높도록 계산
-        final snobScore =
-            (100.0 - averageCongestion).clamp(0.0, 100.0);
-
+        // ⭐ 혼잡도 데이터가 없어도 관광지는 결과에 추가
         results.add(
           SnobCongestionResult(
             spot: spot,
@@ -106,19 +127,18 @@ class SnobCongestion {
             snobScore: snobScore,
           ),
         );
-
-        print('데이터 개수 : ${rates.length}');
-        print(
-          '30일 평균 혼잡도 : '
-          '${averageCongestion.toStringAsFixed(2)}',
-        );
-        print(
-          'SNOB 점수 : '
-          '${snobScore.toStringAsFixed(2)}',
-        );
       } catch (e) {
         print('혼잡도 계산 실패: $spotName');
         print(e);
+
+        // ⭐ API 오류가 발생해도 관광지는 목록에 유지
+        results.add(
+          SnobCongestionResult(
+            spot: spot,
+            averageCongestion: 50.0,
+            snobScore: 50.0,
+          ),
+        );
       }
     }
 
