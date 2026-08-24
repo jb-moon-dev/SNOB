@@ -8,6 +8,9 @@ class TourismSpot {
   final String lDongRegnCd;
   final String lDongSignguCd;
 
+  // ⭐ 정확한 지역명
+  final String regionName;
+
   // 관광 분류
   final String lclsSystm1;
   final String lclsSystm2;
@@ -22,6 +25,7 @@ class TourismSpot {
     required this.contentTypeId,
     required this.lDongRegnCd,
     required this.lDongSignguCd,
+    required this.regionName,
     required this.lclsSystm1,
     required this.lclsSystm2,
     required this.lclsSystm3,

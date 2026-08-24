@@ -15,9 +15,7 @@ Future<void> main() async {
   print("==================================================");
 
   // ============================================================
-  // 1. 한국관광공사 API에서 전국 관광지 데이터 가져오기
-  //
-  // ★ API 호출은 여기서 한 번만 실행한다.
+  // 1. API 관광지 데이터 수집
   // ============================================================
 
   print("");
@@ -29,7 +27,9 @@ Future<void> main() async {
 
   print("");
   print("--------------------------------------------------");
-  print("API에서 받은 관광지 수 : ${spots.length}개");
+  print(
+    "API에서 받은 관광지 수 : ${spots.length}개",
+  );
   print("--------------------------------------------------");
 
   if (spots.isEmpty) {
@@ -40,21 +40,72 @@ Future<void> main() async {
   }
 
   // ============================================================
-  // 2. TourismSpot → SpotVector
-  //
-  // 관광지의 lclsSystm1 / 2 / 3에 따라
-  //
-  // 자연
-  // 숨은
-  // 힐링
-  //
-  // 점수를 계산한다.
-  //
-  // 지역명 역시 VectorGenerator에서 처리한다.
+  // 2. 지역명 확인
   // ============================================================
 
   print("");
-  print("[2] 관광지 → SpotVector");
+  print("[2] 지역명 데이터 검증");
+  print("");
+
+  final Set<String> regionNames = {};
+
+  int emptyRegionCount = 0;
+
+  for (final TourismSpot spot in spots) {
+    final String name =
+        spot.regionName.trim();
+
+    if (name.isEmpty) {
+      emptyRegionCount++;
+    } else {
+      regionNames.add(name);
+    }
+  }
+
+  print(
+    "관광지에서 확인된 지역 수 : "
+    "${regionNames.length}개",
+  );
+
+  print(
+    "빈 지역명 : "
+    "$emptyRegionCount개",
+  );
+
+  // ============================================================
+  // 3. 주요 지역 매핑 확인
+  // ============================================================
+
+  print("");
+  print("[3] 주요 지역 매핑 확인");
+  print("");
+
+  const List<String> requiredRegions = [
+    "서울특별시 종로구",
+    "서울특별시 노원구",
+    "부산광역시 해운대구",
+    "대구광역시 중구",
+    "인천광역시 중구",
+    "광주광역시 동구",
+    "대전광역시 중구",
+    "울산광역시 중구",
+    "세종특별자치시",
+  ];
+
+  for (final String region in requiredRegions) {
+    if (regionNames.contains(region)) {
+      print("✅ $region");
+    } else {
+      print("❌ $region");
+    }
+  }
+
+  // ============================================================
+  // 4. TourismSpot → SpotVector
+  // ============================================================
+
+  print("");
+  print("[4] 관광지 → SpotVector");
   print("");
 
   final List<SpotVector> spotVectors =
@@ -63,61 +114,16 @@ Future<void> main() async {
   );
 
   print(
-    "생성된 SpotVector : ${spotVectors.length}개",
+    "SpotVector : "
+    "${spotVectors.length}개",
   );
 
   // ============================================================
-  // 3. 잘못된 지역명이 생성된 데이터 확인
-  // ============================================================
-
-  final List<SpotVector> invalidRegionSpots =
-      spotVectors
-          .where(
-            (spot) =>
-                spot.regionName.trim().isEmpty,
-          )
-          .toList();
-
-  print(
-    "지역명을 찾지 못한 관광지 : "
-    "${invalidRegionSpots.length}개",
-  );
-
-  if (invalidRegionSpots.isNotEmpty) {
-    print("");
-    print("⚠️ 지역명을 찾지 못한 관광지 예시:");
-
-    for (
-      final spot
-          in invalidRegionSpots.take(10)
-    ) {
-      print(
-        "  - ${spot.spotName}",
-      );
-    }
-  }
-
-  // ============================================================
-  // 4. SpotVector → RegionVector
-  //
-  // 같은 지역의 관광지를 하나로 묶고
-  // 자연 / 숨은 / 힐링 점수의 평균을 계산한다.
-  //
-  // 예:
-  //
-  // 광주광역시 동구
-  // 광주광역시 동구
-  // 광주광역시 동구
-  //
-  // ↓
-  //
-  // 광주광역시 동구
-  //
-  // 하나의 RegionVector
+  // 5. SpotVector → RegionVector
   // ============================================================
 
   print("");
-  print("[3] SpotVector → RegionVector");
+  print("[5] SpotVector → RegionVector");
   print("");
 
   final List<RegionVector> regions =
@@ -126,7 +132,8 @@ Future<void> main() async {
   );
 
   print(
-    "생성된 RegionVector : ${regions.length}개",
+    "RegionVector : "
+    "${regions.length}개",
   );
 
   if (regions.isEmpty) {
@@ -136,18 +143,19 @@ Future<void> main() async {
   }
 
   // ============================================================
-  // 5. 지역명 중복 검증
-  //
-  // generateRegions()에서 이미 그룹화되지만
-  // 최종적으로 한 번 더 검사한다.
+  // 6. 중복 지역명 검사
   // ============================================================
 
-  final Set<String> regionNames = {};
+  print("");
+  print("[6] 중복 지역명 검사");
+  print("");
+
+  final Set<String> uniqueRegionNames = {};
 
   final List<String> duplicatedNames = [];
 
-  for (final region in regions) {
-    if (!regionNames.add(
+  for (final RegionVector region in regions) {
+    if (!uniqueRegionNames.add(
       region.regionName,
     )) {
       duplicatedNames.add(
@@ -156,35 +164,49 @@ Future<void> main() async {
     }
   }
 
-  print("");
-  print("[4] 지역 중복 검증");
-  print("");
-
   if (duplicatedNames.isEmpty) {
     print("✅ 중복 지역명 없음");
   } else {
     print(
-      "⚠️ 중복 지역명 : "
+      "❌ 중복 지역명 "
       "${duplicatedNames.length}개",
     );
 
-    for (
-      final name
-          in duplicatedNames.toSet()
-    ) {
+    for (final String name
+        in duplicatedNames.toSet()) {
       print("  - $name");
     }
   }
 
   // ============================================================
-  // 6. 지역명 이상 여부 확인
-  //
-  // 이전에 발생했던 대표적인 오류:
-  //
-  // 광주광역사
-  // 전남광주통합특별시
-  //
-  // 같은 잘못된 지역명이 들어갔는지 확인한다.
+  // 7. 빈 지역명 검사
+  // ============================================================
+
+  print("");
+  print("[7] 지역명 오류 검사");
+  print("");
+
+  final List<RegionVector> emptyRegions =
+      regions
+          .where(
+            (region) =>
+                region.regionName
+                    .trim()
+                    .isEmpty,
+          )
+          .toList();
+
+  if (emptyRegions.isEmpty) {
+    print("✅ 빈 지역명 없음");
+  } else {
+    print(
+      "❌ 빈 지역명 : "
+      "${emptyRegions.length}개",
+    );
+  }
+
+  // ============================================================
+  // 8. 잘못된 지역명 검사
   // ============================================================
 
   final List<String> suspiciousRegions =
@@ -196,43 +218,31 @@ Future<void> main() async {
           .where(
             (name) =>
                 name.contains("광주광역사") ||
-                name.contains(
-                  "전남광주통합",
-                ),
+                name.contains("전남광주통합"),
           )
           .toList();
 
-  print("");
-  print("[5] 지역명 오류 검증");
-  print("");
-
   if (suspiciousRegions.isEmpty) {
-    print("✅ 잘못된 지역명 없음");
+    print("✅ 이상 지역명 없음");
   } else {
-    print(
-      "❌ 잘못된 지역명이 발견되었습니다:",
-    );
+    print("❌ 이상 지역명 발견");
 
-    for (
-      final name
-          in suspiciousRegions
-    ) {
+    for (final String name
+        in suspiciousRegions) {
       print("  - $name");
     }
   }
 
   // ============================================================
-  // 7. RegionVector 샘플 출력
+  // 9. RegionVector 샘플
   // ============================================================
 
   print("");
-  print("[6] RegionVector 샘플");
+  print("[8] RegionVector 샘플");
   print("");
 
-  for (
-    final region
-        in regions.take(20)
-  ) {
+  for (final RegionVector region
+      in regions.take(20)) {
     print(
       "지역 : ${region.regionName}",
     );
@@ -261,10 +271,10 @@ Future<void> main() async {
   }
 
   // ============================================================
-  // 8. JSON 데이터 생성
+  // 10. JSON 생성
   // ============================================================
 
-  print("[7] RegionVector → JSON");
+  print("[9] region_vectors.json 생성");
   print("");
 
   final List<Map<String, dynamic>> jsonData =
@@ -280,26 +290,20 @@ Future<void> main() async {
       ).convert(jsonData);
 
   // ============================================================
-  // 9. assets/data 폴더 생성
+  // 11. assets/data 생성
   // ============================================================
 
   final Directory directory =
-      Directory(
-    "assets/data",
-  );
+      Directory("assets/data");
 
   if (!directory.existsSync()) {
     directory.createSync(
       recursive: true,
     );
-
-    print(
-      "assets/data 폴더 생성 완료",
-    );
   }
 
   // ============================================================
-  // 10. JSON 파일 저장
+  // 12. JSON 저장
   // ============================================================
 
   final File file =
@@ -313,74 +317,53 @@ Future<void> main() async {
   );
 
   // ============================================================
-  // 11. 최종 결과
+  // 13. 최종 결과
   // ============================================================
 
   print("");
   print("==================================================");
-  print("          JSON 생성 완료");
+  print("              JSON 생성 완료");
   print("==================================================");
 
   print("");
   print(
-    "관광지 데이터 : ${spots.length}개",
+    "관광지 데이터 : "
+    "${spots.length}개",
   );
 
   print(
-    "SpotVector : ${spotVectors.length}개",
+    "SpotVector : "
+    "${spotVectors.length}개",
   );
 
   print(
-    "RegionVector : ${regions.length}개",
+    "RegionVector : "
+    "${regions.length}개",
   );
 
   print(
-    "중복 지역명 : ${duplicatedNames.length}개",
+    "중복 지역명 : "
+    "${duplicatedNames.length}개",
   );
 
   print(
-    "지역명 오류 : ${suspiciousRegions.length}개",
+    "이상 지역명 : "
+    "${suspiciousRegions.length}개",
+  );
+
+  print(
+    "빈 지역명 : "
+    "$emptyRegionCount개",
   );
 
   print("");
   print(
-    "저장 위치 : ${file.path}",
-  );
-
-  print("");
-  print(
-    "==================================================",
+    "저장 위치 : "
+    "${file.path}",
   );
 
   // ============================================================
-  // 12. 252개 지역 여부 확인
-  // ============================================================
-
-  if (regions.length == 252) {
-    print(
-      "✅ 목표 지역 수 252개가 정확하게 생성되었습니다.",
-    );
-  } else {
-    print(
-      "⚠️ 현재 생성된 지역 수 : "
-      "${regions.length}개",
-    );
-
-    print(
-      "   목표 지역 수 : 252개",
-    );
-
-    print(
-      "   지역 수가 252개와 다릅니다.",
-    );
-  }
-
-  print(
-    "==================================================",
-  );
-
-  // ============================================================
-  // 13. JSON 파일 존재 여부 최종 확인
+  // 14. 파일 확인
   // ============================================================
 
   if (file.existsSync()) {
@@ -393,7 +376,8 @@ Future<void> main() async {
     );
 
     print(
-      "파일 크기 : $fileSize bytes",
+      "파일 크기 : "
+      "$fileSize bytes",
     );
   } else {
     print("");
@@ -402,14 +386,48 @@ Future<void> main() async {
     );
   }
 
+  // ============================================================
+  // 15. 최종 지역 수
+  // ============================================================
+
   print("");
-  print(
-    "==================================================",
-  );
-  print(
-    "        SNOB RegionVector JSON 생성 종료",
-  );
-  print(
-    "==================================================",
-  );
+  print("==================================================");
+  print("              최종 지역 수 검증");
+  print("==================================================");
+
+  print("");
+
+  if (regions.length == 252) {
+    print(
+      "🎉 252개 지역이 정확하게 생성되었습니다!",
+    );
+  } else {
+    print(
+      "⚠️ 목표 지역 수와 다릅니다.",
+    );
+
+    print(
+      "현재 : ${regions.length}개",
+    );
+
+    print(
+      "목표 : 252개",
+    );
+
+    print("");
+    print(
+      "현재 생성된 지역 목록:",
+    );
+
+    for (final region in regions) {
+      print(
+        "  - ${region.regionName}",
+      );
+    }
+  }
+
+  print("");
+  print("==================================================");
+  print("        SNOB RegionVector JSON 생성 종료");
+  print("==================================================");
 }
