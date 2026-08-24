@@ -265,10 +265,6 @@ class _Center50ScreenState extends State<Center50Screen> {
 
       // --------------------------------------------------
       // 8. CourseResultScreen으로 이동
-      //
-      // Center50Screen은 사용자에게 관광지 목록을
-      // 보여주는 화면이 아니라 중간 처리 화면이므로
-      // 결과를 가져오면 바로 다음 화면으로 이동한다.
       // --------------------------------------------------
 
       if (!mounted) return;

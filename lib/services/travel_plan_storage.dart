@@ -35,7 +35,7 @@ class TravelPlanStorage {
 
     try {
       return TravelPlan.fromJsonString(source);
-    } catch (_) {
+    } catch (e) {
       return null;
     }
   }
