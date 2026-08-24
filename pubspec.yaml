@@ -47,3 +47,4 @@ flutter:
     - assets/map/sigungu_congestion.geojson
     - congestion_final.csv
     - assets/region_codes.xlsx
+    - assets/data/region_vectors.json

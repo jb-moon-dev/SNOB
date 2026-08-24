@@ -27,15 +27,26 @@ class RegionCodeConverter {
     for (final sheet in excel.tables.keys) {
       final table = excel.tables[sheet];
 
-      if (table == null) continue;
+      if (table == null) {
+        continue;
+      }
 
       for (final row in table.rows) {
-        if (row.length < 4) continue;
+        if (row.length < 4) {
+          continue;
+        }
 
-        final areaCd = row[0]?.value?.toString();
-        final areaNm = row[1]?.value?.toString();
-        final sigunguCd = row[2]?.value?.toString();
-        final sigunguNm = row[3]?.value?.toString();
+        final String? areaCd =
+            row[0]?.value?.toString().trim();
+
+        final String? areaNm =
+            row[1]?.value?.toString().trim();
+
+        final String? sigunguCd =
+            row[2]?.value?.toString().trim();
+
+        final String? sigunguNm =
+            row[3]?.value?.toString().trim();
 
         if (areaNm == null ||
             sigunguNm == null ||
@@ -44,9 +55,22 @@ class RegionCodeConverter {
           continue;
         }
 
-        // RegionVector에는 "강릉시", "종로구"처럼
-        // 시군구 이름만 저장되어 있으므로 시군구명으로 비교
-        if (sigunguNm == regionName) {
+        // ================================================
+        // 시도 + 시군구 이름으로 비교
+        //
+        // 예:
+        //
+        // areaNm    = 대구광역시
+        // sigunguNm = 서구
+        //
+        // fullRegionName
+        //           = 대구광역시 서구
+        // ================================================
+
+        final String fullRegionName =
+            '$areaNm $sigunguNm';
+
+        if (fullRegionName == regionName.trim()) {
           return RegionCode(
             areaCd: areaCd,
             sigunguCd: sigunguCd,
