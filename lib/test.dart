@@ -40,6 +40,125 @@ Future<void> main() async {
   }
 
   // ============================================================
+  // 1-1. 관광지 원본 데이터 CSV 저장
+  //
+  // ⭐ 보호구역 공간 매칭을 위해
+  // 관광지의 위도/경도를 CSV로 저장
+  // ============================================================
+
+  print("");
+  print("[1-1] 관광지 원본 데이터 CSV 저장");
+  print("");
+
+  final Directory dataDirectory =
+      Directory("data");
+
+  if (!dataDirectory.existsSync()) {
+    dataDirectory.createSync(
+      recursive: true,
+    );
+  }
+
+  // CSV에 들어가는 문자열 안전하게 처리
+  String csvEscape(String value) {
+    final String escaped =
+        value.replaceAll('"', '""');
+
+    return '"$escaped"';
+  }
+
+  final StringBuffer csv =
+      StringBuffer();
+
+  // ------------------------------------------------------------
+  // CSV 헤더
+  // ------------------------------------------------------------
+
+  csv.writeln(
+    "contentId,"
+    "title,"
+    "address,"
+    "contentTypeId,"
+    "lDongRegnCd,"
+    "lDongSignguCd,"
+    "regionName,"
+    "lclsSystm1,"
+    "lclsSystm2,"
+    "lclsSystm3,"
+    "modifiedTime,"
+    "latitude,"
+    "longitude",
+  );
+
+  // ------------------------------------------------------------
+  // 관광지 데이터
+  // ------------------------------------------------------------
+
+  for (final TourismSpot spot in spots) {
+    csv.writeln(
+      "${csvEscape(spot.contentId)},"
+      "${csvEscape(spot.title)},"
+      "${csvEscape(spot.address)},"
+      "${csvEscape(spot.contentTypeId)},"
+      "${csvEscape(spot.lDongRegnCd)},"
+      "${csvEscape(spot.lDongSignguCd)},"
+      "${csvEscape(spot.regionName)},"
+      "${csvEscape(spot.lclsSystm1)},"
+      "${csvEscape(spot.lclsSystm2)},"
+      "${csvEscape(spot.lclsSystm3)},"
+      "${csvEscape(spot.modifiedTime)},"
+      "${spot.latitude ?? ""},"
+      "${spot.longitude ?? ""}",
+    );
+  }
+
+  final File tourismCsvFile =
+      File("data/tourism_spots.csv");
+
+  await tourismCsvFile.writeAsString(
+    csv.toString(),
+    encoding: utf8,
+  );
+
+  print(
+    "✅ 관광지 CSV 저장 완료",
+  );
+
+  print(
+    "저장 위치 : ${tourismCsvFile.path}",
+  );
+
+  print(
+    "관광지 수 : ${spots.length}개",
+  );
+
+  // ============================================================
+  // 1-2. 좌표 보유 여부 확인
+  // ============================================================
+
+  final int spotsWithCoordinates =
+      spots.where(
+    (spot) =>
+        spot.latitude != null &&
+        spot.longitude != null,
+  ).length;
+
+  final int spotsWithoutCoordinates =
+      spots.length -
+      spotsWithCoordinates;
+
+  print("");
+  print(
+    "좌표 보유 관광지 : "
+    "$spotsWithCoordinates개",
+  );
+
+  print(
+    "좌표 없는 관광지 : "
+    "$spotsWithoutCoordinates개",
+  );
+
+  // ============================================================
   // 2. 지역명 확인
   // ============================================================
 
@@ -271,7 +390,7 @@ Future<void> main() async {
   }
 
   // ============================================================
-  // 10. JSON 생성
+  // 10. JSON 데이터 생성
   // ============================================================
 
   print("[9] region_vectors.json 생성");
@@ -290,14 +409,14 @@ Future<void> main() async {
       ).convert(jsonData);
 
   // ============================================================
-  // 11. assets/data 생성
+  // 11. assets/data 폴더 생성
   // ============================================================
 
-  final Directory directory =
+  final Directory assetsDataDirectory =
       Directory("assets/data");
 
-  if (!directory.existsSync()) {
-    directory.createSync(
+  if (!assetsDataDirectory.existsSync()) {
+    assetsDataDirectory.createSync(
       recursive: true,
     );
   }
@@ -332,6 +451,16 @@ Future<void> main() async {
   );
 
   print(
+    "좌표 보유 관광지 : "
+    "$spotsWithCoordinates개",
+  );
+
+  print(
+    "좌표 없는 관광지 : "
+    "$spotsWithoutCoordinates개",
+  );
+
+  print(
     "SpotVector : "
     "${spotVectors.length}개",
   );
@@ -358,19 +487,53 @@ Future<void> main() async {
 
   print("");
   print(
-    "저장 위치 : "
+    "관광지 CSV 저장 위치 : "
+    "${tourismCsvFile.path}",
+  );
+
+  print(
+    "JSON 저장 위치 : "
     "${file.path}",
   );
 
   // ============================================================
-  // 14. 파일 확인
+  // 14. CSV 파일 확인
   // ============================================================
+
+  print("");
+  print("[10] 관광지 CSV 파일 확인");
+  print("");
+
+  if (tourismCsvFile.existsSync()) {
+    final int csvFileSize =
+        tourismCsvFile.lengthSync();
+
+    print(
+      "✅ tourism_spots.csv 파일 확인 완료",
+    );
+
+    print(
+      "파일 크기 : "
+      "$csvFileSize bytes",
+    );
+  } else {
+    print(
+      "❌ tourism_spots.csv 파일 생성 확인 실패",
+    );
+  }
+
+  // ============================================================
+  // 15. JSON 파일 확인
+  // ============================================================
+
+  print("");
+  print("[11] JSON 파일 확인");
+  print("");
 
   if (file.existsSync()) {
     final int fileSize =
         file.lengthSync();
 
-    print("");
     print(
       "✅ region_vectors.json 파일 확인 완료",
     );
@@ -380,14 +543,13 @@ Future<void> main() async {
       "$fileSize bytes",
     );
   } else {
-    print("");
     print(
       "❌ JSON 파일 생성 확인 실패",
     );
   }
 
   // ============================================================
-  // 15. 최종 지역 수
+  // 16. 최종 지역 수
   // ============================================================
 
   print("");
@@ -426,8 +588,55 @@ Future<void> main() async {
     }
   }
 
+  // ============================================================
+  // 17. 관광지 CSV 샘플 확인
+  // ============================================================
+
+  print("");
+  print("==================================================");
+  print("          관광지 좌표 데이터 최종 확인");
+  print("==================================================");
+
+  print("");
+
+  int sampleCount = 0;
+
+  for (final TourismSpot spot in spots) {
+    if (spot.latitude != null &&
+        spot.longitude != null) {
+      print(
+        "${spot.title} | "
+        "${spot.regionName} | "
+        "위도=${spot.latitude} | "
+        "경도=${spot.longitude}",
+      );
+
+      sampleCount++;
+
+      if (sampleCount >= 5) {
+        break;
+      }
+    }
+  }
+
+  if (sampleCount == 0) {
+    print(
+      "⚠️ 좌표가 있는 관광지 샘플이 없습니다.",
+    );
+  }
+
+  // ============================================================
+  // 종료
+  // ============================================================
+
   print("");
   print("==================================================");
   print("        SNOB RegionVector JSON 생성 종료");
   print("==================================================");
+  print("");
+
+  print("다음 단계:");
+  print("1. data/tourism_spots.csv 생성 확인");
+  print("2. Python 보호구역 매칭 실행");
+  print("");
 }
