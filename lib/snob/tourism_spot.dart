@@ -18,6 +18,10 @@ class TourismSpot {
 
   final String modifiedTime;
 
+  // ⭐ 관광지 좌표
+  final double? latitude;
+  final double? longitude;
+
   TourismSpot({
     required this.contentId,
     required this.title,
@@ -30,5 +34,9 @@ class TourismSpot {
     required this.lclsSystm2,
     required this.lclsSystm3,
     required this.modifiedTime,
+
+    // ⭐ 좌표
+    required this.latitude,
+    required this.longitude,
   });
 }

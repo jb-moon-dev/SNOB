@@ -255,6 +255,24 @@ class TourismApiService {
             continue;
           }
 
+          // ======================================================
+          // ⭐ 관광지 좌표
+          //
+          // API:
+          // mapy = 위도(latitude)
+          // mapx = 경도(longitude)
+          // ======================================================
+
+          final double? latitude =
+              double.tryParse(
+            item["mapy"]?.toString() ?? "",
+          );
+
+          final double? longitude =
+              double.tryParse(
+            item["mapx"]?.toString() ?? "",
+          );
+
           final TourismSpot spot = TourismSpot(
             contentId:
                 item["contentid"]?.toString() ?? "",
@@ -268,12 +286,20 @@ class TourismApiService {
                 item["contenttypeid"]?.toString() ?? "",
 
             lDongRegnCd:
-                item["lDongRegnCd"]?.toString().trim().isNotEmpty == true
+                item["lDongRegnCd"]
+                            ?.toString()
+                            .trim()
+                            .isNotEmpty ==
+                        true
                     ? item["lDongRegnCd"].toString()
                     : regionCode,
 
             lDongSignguCd:
-                item["lDongSignguCd"]?.toString().trim().isNotEmpty == true
+                item["lDongSignguCd"]
+                            ?.toString()
+                            .trim()
+                            .isNotEmpty ==
+                        true
                     ? item["lDongSignguCd"].toString()
                     : sigunguCode,
 
@@ -291,6 +317,10 @@ class TourismApiService {
 
             modifiedTime:
                 item["modifiedtime"]?.toString() ?? "",
+
+            // ⭐ 좌표 추가
+            latitude: latitude,
+            longitude: longitude,
           );
 
           spots.add(spot);
@@ -464,6 +494,24 @@ class TourismApiService {
 
     print(
       "중복 제거 후 : ${result.length}개",
+    );
+
+    // ⭐ 좌표가 있는 관광지 수 확인
+    final int spotsWithCoordinates =
+        result.where(
+      (spot) =>
+          spot.latitude != null &&
+          spot.longitude != null,
+    ).length;
+
+    print(
+      "좌표 보유 관광지 : "
+      "$spotsWithCoordinates개",
+    );
+
+    print(
+      "좌표 없는 관광지 : "
+      "${result.length - spotsWithCoordinates}개",
     );
 
     return result;
