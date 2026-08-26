@@ -1,5 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
+
+import 'package:flutter/services.dart';
 
 class SnobSensitivityResult {
   final Map<String, dynamic> spot;
@@ -24,7 +25,7 @@ class SnobSensitivityResult {
 
 class SnobSensitivity {
   static const String csvPath =
-      'data/tourism_spots_protected.csv';
+      'assets/data/tourism_spots_protected.csv';
 
   static const double protectedScore = 0;
   static const double normalScore = 20;
@@ -44,15 +45,8 @@ class SnobSensitivity {
     // 1. 보호 관광지 CSV 읽기
     // -----------------------------------------
 
-    final file = File(csvPath);
-
-    if (!await file.exists()) {
-      throw Exception(
-        '보호 관광지 CSV를 찾을 수 없습니다: $csvPath',
-      );
-    }
-
-    final csvText = await file.readAsString();
+    final csvText =
+    await rootBundle.loadString(csvPath);
 
     final lines = const LineSplitter().convert(csvText);
 

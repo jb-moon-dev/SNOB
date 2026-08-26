@@ -48,3 +48,4 @@ flutter:
     - congestion_final.csv
     - assets/region_codes.xlsx
     - assets/data/region_vectors.json
+    - assets/data/tourism_spots_protected.csv

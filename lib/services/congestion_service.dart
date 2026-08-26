@@ -10,36 +10,64 @@ class CongestionService {
 
   /// 관광지 집중률 조회
   ///
+  /// 조회 기준:
+  /// - 조회일 기준 한 달 전
+  /// - areaCd
+  /// - signguCd
+  ///
   /// 반환:
   /// [
   ///   {
-  ///     'tAtsNm': '해운대해수욕장',
-  ///     'congestion': 82.4,
-  ///     ...
+  ///     'hubCtgryMclsNm': ...,
+  ///     'hubRank': ...,
+  ///     'baseYm': ...,
+  ///     'mapX': ...,
+  ///     'mapY': ...,
+  ///     'areaCd': ...,
+  ///     'areaNm': ...,
+  ///     'signguCd': ...,
+  ///     'signguNm': ...,
+  ///     'hubTatsCd': ...,
+  ///     'hubTatsNm': ...,
+  ///     'hubCtgryLclsNm': ...
   ///   }
   /// ]
   Future<List<Map<String, dynamic>>> getCongestion({
     required String areaCd,
     required String signguCd,
-    String? touristSpotName,
     int pageNo = 1,
-    int numOfRows = 30,
+    int numOfRows = 100,
   }) async {
+
+    // ============================================================
+    // 조회일 기준 한 달 전
+    // ============================================================
+
+    final now = DateTime.now();
+
+    final baseDate = DateTime(
+      now.year,
+      now.month - 1,
+    );
+
+    final baseYm =
+        '${baseDate.year}${baseDate.month.toString().padLeft(2, '0')}';
+
+    // ============================================================
+    // API 요청
+    // ============================================================
+
     final queryParameters = <String, String>{
       'serviceKey': serviceKey,
       'pageNo': pageNo.toString(),
       'numOfRows': numOfRows.toString(),
       'MobileOS': 'ETC',
       'MobileApp': 'SNOB',
+      'baseYm': baseYm,
       'areaCd': areaCd,
       'signguCd': signguCd,
       '_type': 'json',
     };
-
-    // 특정 관광지만 조회할 경우
-    if (touristSpotName != null && touristSpotName.isNotEmpty) {
-      queryParameters['tAtsNm'] = touristSpotName;
-    }
 
     final uri = Uri.parse(
       '$baseUrl/tatsCnctrRatedList',
@@ -50,6 +78,9 @@ class CongestionService {
     print('');
     print('========================================');
     print('CONGESTION API');
+    print('기준월: $baseYm');
+    print('지역코드: $areaCd');
+    print('시군구코드: $signguCd');
     print(uri);
     print('========================================');
 
@@ -60,11 +91,19 @@ class CongestionService {
     print(response.body);
     print('========================================');
 
+    // ============================================================
+    // HTTP 오류
+    // ============================================================
+
     if (response.statusCode != 200) {
       throw Exception(
         '관광지 집중률 API 호출 실패: ${response.statusCode}',
       );
     }
+
+    // ============================================================
+    // JSON 파싱
+    // ============================================================
 
     final decoded = jsonDecode(response.body);
 
@@ -87,8 +126,12 @@ class CongestionService {
     print('items type: ${itemsData.runtimeType}');
     print('items: $itemsData');
 
-    // 데이터가 없는 경우
+    // ============================================================
+    // 데이터 없음
+    // ============================================================
+
     if (itemsData == null || itemsData == '') {
+      print('관광지 집중률 데이터 없음');
       return [];
     }
 
@@ -100,21 +143,40 @@ class CongestionService {
     final itemData = itemsData['item'];
 
     if (itemData == null || itemData == '') {
+      print('관광지 집중률 item 없음');
       return [];
     }
 
+    // ============================================================
+    // 여러 관광지
+    // ============================================================
+
     if (itemData is List) {
-      return itemData
+      final results = itemData
           .map(
             (item) => Map<String, dynamic>.from(item),
           )
           .toList();
+
+      print(
+        '집중률 관광지 수: ${results.length}',
+      );
+
+      return results;
     }
 
+    // ============================================================
+    // 관광지 1개
+    // ============================================================
+
     if (itemData is Map) {
-      return [
+      final result = [
         Map<String, dynamic>.from(itemData),
       ];
+
+      print('집중률 관광지 수: 1');
+
+      return result;
     }
 
     return [];
