@@ -72,7 +72,7 @@ class SnobSubstitutability {
   // pubspec.yaml의 assets에 등록되어 있어야 한다.
   //
   static const String dataPath =
-      'assets/data/snob_tourism_data.json';
+      'assets/data/snob_substitutability_data.json';
 
 
   // 전국 지역 데이터
