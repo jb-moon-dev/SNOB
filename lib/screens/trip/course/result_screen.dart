@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'snob_congestion.dart';
+import 'snob_final.dart';
 import '../../../models/travel_plan.dart';
 import '../../../services/travel_plan_storage.dart';
 
@@ -33,7 +33,7 @@ class _CourseResultScreenState
 
   String? errorMessage;
 
-  List<SnobCongestionResult> results = [];
+  List<SnobFinalResult> results = [];
 
   // ============================================================
   // 여행 일정
@@ -121,7 +121,7 @@ class _CourseResultScreenState
       debugPrint('관광지 수: ${widget.spots.length}');
       debugPrint('========================================');
 
-      final calculator = SnobCongestion();
+      final calculator = SnobFinal();
 
       final calculatedResults =
           await calculator.calculate(widget.spots);
@@ -159,7 +159,7 @@ class _CourseResultScreenState
 
         debugPrint(
           'SNOB 점수: '
-          '${result.snobScore.toStringAsFixed(2)}',
+          '${result.totalScore.toStringAsFixed(2)}',
         );
       }
 
@@ -191,7 +191,7 @@ class _CourseResultScreenState
   // ============================================================
 
   TravelSpot _createTravelSpot(
-    SnobCongestionResult result,
+    SnobFinalResult result,
   ) {
     final spot = result.spot;
 
@@ -248,7 +248,7 @@ class _CourseResultScreenState
       latitude: latitude,
       longitude: longitude,
       congestion: result.averageCongestion,
-      snobScore: result.snobScore,
+      snobScore: result.totalScore,
       contentId: contentId,
       kakaoPlaceId: kakaoPlaceId,
       kakaoPlaceUrl: kakaoPlaceUrl,
@@ -293,7 +293,7 @@ class _CourseResultScreenState
   // ============================================================
 
   Future<void> _addToPlan(
-    SnobCongestionResult result,
+    SnobFinalResult result,
     int dayNumber,
   ) async {
     if (isSaving) return;
@@ -773,7 +773,7 @@ class _CourseResultScreenState
   // ============================================================
 
   void _showDaySelector(
-    SnobCongestionResult result,
+    SnobFinalResult result,
   ) {
     showModalBottomSheet(
       context: context,
@@ -1239,7 +1239,7 @@ class _CourseResultScreenState
                                 _ScoreBox(
                               title: 'SNOB',
                               value: result
-                                  .snobScore
+                                  .totalScore
                                   .toStringAsFixed(
                                 1,
                               ),
