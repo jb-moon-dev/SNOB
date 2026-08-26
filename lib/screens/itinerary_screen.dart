@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../models/travel_plan.dart';
-import '../services/travel_plan_storage.dart';
+import '../../models/travel_plan.dart';
+import '../../services/travel_plan_storage.dart';
+import '../../services/kakao_local_service.dart';
+import '../../services/route_service.dart';
+import 'place_search_sheet.dart';
 
 class ItineraryScreen extends StatefulWidget {
   final TravelPlan travelPlan;
@@ -12,13 +15,25 @@ class ItineraryScreen extends StatefulWidget {
   });
 
   @override
-  State<ItineraryScreen> createState() => _ItineraryScreenState();
+  State<ItineraryScreen> createState() =>
+      _ItineraryScreenState();
 }
 
-class _ItineraryScreenState extends State<ItineraryScreen> {
+class _ItineraryScreenState
+    extends State<ItineraryScreen> {
   late TravelPlan travelPlan;
 
   int selectedDayIndex = 0;
+
+  static const int defaultStartMinute =
+      9 * 60;
+
+  final RouteService _routeService =
+      RouteService();
+
+  bool _recalculatingRoutes = false;
+
+  int _routeCalculationToken = 0;
 
   @override
   void initState() {
@@ -31,6 +46,23 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
         TravelDay(day: 1),
       );
     }
+
+    _normalizeCurrentDay();
+
+    // 기존 일정 중 좌표가 있는 장소의
+    // 이동시간을 실제 API 기준으로 한 번 계산
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) {
+      _updateTravelTimes(
+        showMessage: false,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _routeService.dispose();
+    super.dispose();
   }
 
   // ============================================================
@@ -38,19 +70,35 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
   // ============================================================
 
   TravelDay get currentDay {
-    if (selectedDayIndex >= travelPlan.days.length) {
+    _normalizeCurrentDay();
+    return travelPlan.days[
+        selectedDayIndex];
+  }
+
+  void _normalizeCurrentDay() {
+    if (travelPlan.days.isEmpty) {
+      travelPlan.days.add(
+        TravelDay(day: 1),
+      );
+    }
+
+    if (selectedDayIndex >=
+        travelPlan.days.length) {
       selectedDayIndex = 0;
     }
 
-    return travelPlan.days[selectedDayIndex];
+    if (selectedDayIndex < 0) {
+      selectedDayIndex = 0;
+    }
   }
 
   // ============================================================
-  // 일정 저장
+  // 저장
   // ============================================================
 
   Future<void> _savePlan() async {
-    travelPlan.updatedAt = DateTime.now();
+    travelPlan.updatedAt =
+        DateTime.now();
 
     await TravelPlanStorage.saveTravelPlan(
       travelPlan,
@@ -58,7 +106,7 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
   }
 
   // ============================================================
-  // 시간 포맷
+  // 시간
   // ============================================================
 
   String _formatMinute(int? minute) {
@@ -66,165 +114,363 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
       return '--:--';
     }
 
-    final hour = minute ~/ 60;
-    final min = minute % 60;
+    final hour =
+        (minute ~/ 60) % 24;
+    final min =
+        minute % 60;
 
     return '${hour.toString().padLeft(2, '0')}:'
         '${min.toString().padLeft(2, '0')}';
   }
 
-  // ============================================================
-  // 관광지 추가
-  // ============================================================
+  String _durationText(
+    int minutes,
+  ) {
+    if (minutes < 60) {
+      return '$minutes분';
+    }
 
-  void _showAddPlaceDialog() {
-    final nameController = TextEditingController();
-    final categoryController = TextEditingController();
+    final hour =
+        minutes ~/ 60;
+    final remain =
+        minutes % 60;
 
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text(
-            '장소 추가',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // ------------------------------------------------
-                // 장소명
-                // ------------------------------------------------
+    if (remain == 0) {
+      return '$hour시간';
+    }
 
-                TextField(
-                  controller: nameController,
+    return '$hour시간 $remain분';
+  }
 
-                  // 한글 / 일반 텍스트 입력
-                  keyboardType: TextInputType.text,
+  int? get _dayStartMinute {
+    if (currentDay.spots.isEmpty) {
+      return null;
+    }
 
-                  // 다음 입력칸으로 이동
-                  textInputAction: TextInputAction.next,
-
-                  // 한글 입력 시 자동 추천 허용
-                  enableSuggestions: true,
-
-                  // 장소명은 자동 수정하지 않음
-                  autocorrect: false,
-
-                  decoration: const InputDecoration(
-                    labelText: '장소명',
-                    hintText: '예: 죽녹원',
-                    prefixIcon: Icon(
-                      Icons.place_outlined,
-                    ),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-
-                const SizedBox(height: 14),
-
-                // ------------------------------------------------
-                // 카테고리
-                // ------------------------------------------------
-
-                TextField(
-                  controller: categoryController,
-
-                  keyboardType: TextInputType.text,
-
-                  textInputAction: TextInputAction.done,
-
-                  enableSuggestions: true,
-
-                  autocorrect: false,
-
-                  decoration: const InputDecoration(
-                    labelText: '카테고리',
-                    hintText: '예: 자연',
-                    prefixIcon: Icon(
-                      Icons.category_outlined,
-                    ),
-                    border: OutlineInputBorder(),
-                  ),
-
-                  onSubmitted: (_) {
-                    _addPlaceFromDialog(
-                      dialogContext,
-                      nameController,
-                      categoryController,
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child: const Text('취소'),
-            ),
-            FilledButton(
-              onPressed: () {
-                _addPlaceFromDialog(
-                  dialogContext,
-                  nameController,
-                  categoryController,
-                );
-              },
-              child: const Text('추가'),
-            ),
-          ],
-        );
-      },
-    ).then((_) {
-      // 다이얼로그가 완전히 닫힌 뒤 컨트롤러 정리
-      nameController.dispose();
-      categoryController.dispose();
-    });
+    return currentDay
+        .spots
+        .first
+        .startMinute;
   }
 
   // ============================================================
-  // 직접 장소 추가 처리
+  // 시간 자동 계산
   // ============================================================
 
-  Future<void> _addPlaceFromDialog(
-    BuildContext dialogContext,
-    TextEditingController nameController,
-    TextEditingController categoryController,
-  ) async {
-    final name = nameController.text.trim();
+  void _recalculateTimes({
+    int? startMinute,
+  }) {
+    final spots =
+        currentDay.spots;
 
-    if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            '장소명을 입력해주세요.',
-          ),
-        ),
-      );
+    if (spots.isEmpty) {
       return;
     }
 
-    final categoryText =
-        categoryController.text.trim();
+    int currentMinute =
+        startMinute ??
+            spots.first.startMinute ??
+            defaultStartMinute;
 
-    // ----------------------------------------------------------
-    // 중복 확인
-    // ----------------------------------------------------------
+    for (
+      int i = 0;
+      i < spots.length;
+      i++
+    ) {
+      final spot =
+          spots[i];
 
-    final alreadyExists = currentDay.spots.any(
-      (item) => item.name == name,
+      spots[i] =
+          spot.copyWith(
+        startMinute:
+            currentMinute,
+        travelMinutesFromPrevious:
+            i == 0
+                ? 0
+                : spot
+                    .travelMinutesFromPrevious,
+      );
+
+      currentMinute +=
+          spot.durationMinutes;
+
+      if (i <
+          spots.length - 1) {
+        currentMinute +=
+            spots[i + 1]
+                .travelMinutesFromPrevious;
+      }
+    }
+  }
+
+  // ============================================================
+  // ★ 실제 좌표 기반 이동시간 계산
+  // ============================================================
+
+  Future<void> _updateTravelTimes({
+    bool showMessage = true,
+  }) async {
+    final spots =
+        List<TravelSpot>.from(
+      currentDay.spots,
+    );
+
+    if (spots.length < 2) {
+      return;
+    }
+
+    final token =
+        ++_routeCalculationToken;
+
+    setState(() {
+      _recalculatingRoutes = true;
+    });
+
+    bool hasFallback = false;
+    bool hasMissingCoordinates =
+        false;
+
+    try {
+      for (
+        int i = 1;
+        i < spots.length;
+        i++
+      ) {
+        final previous =
+            spots[i - 1];
+
+        final current =
+            spots[i];
+
+        // ------------------------------------------------------
+        // 좌표가 없으면 API 호출 불가능
+        // ------------------------------------------------------
+
+        if (previous.latitude ==
+                null ||
+            previous.longitude ==
+                null ||
+            current.latitude ==
+                null ||
+            current.longitude ==
+                null) {
+          hasMissingCoordinates =
+              true;
+          continue;
+        }
+
+        final route =
+            await _routeService
+                .getWalkingRoute(
+          startLatitude:
+              previous.latitude!,
+          startLongitude:
+              previous.longitude!,
+          endLatitude:
+              current.latitude!,
+          endLongitude:
+              current.longitude!,
+        );
+
+        if (!mounted) {
+          return;
+        }
+
+        if (token !=
+            _routeCalculationToken) {
+          return;
+        }
+
+        spots[i] =
+            current.copyWith(
+          travelMinutesFromPrevious:
+              route.durationMinutes,
+        );
+
+        if (!route.fromApi) {
+          hasFallback = true;
+        }
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      if (token !=
+          _routeCalculationToken) {
+        return;
+      }
+
+      setState(() {
+        for (
+          int i = 0;
+          i < spots.length;
+          i++
+        ) {
+          currentDay.spots[i] =
+              spots[i];
+        }
+
+        _recalculateTimes();
+      });
+
+      await _savePlan();
+
+      if (!mounted ||
+          !showMessage) {
+        return;
+      }
+
+      String message;
+
+      if (hasMissingCoordinates) {
+        message =
+            '좌표가 없는 장소는 이동시간을 계산하지 못했어요.';
+      } else if (hasFallback) {
+        message =
+            '일부 구간은 실제 경로 조회에 실패해 예상시간을 사용했어요.';
+      } else {
+        message =
+            '실제 도보 경로 기준으로 이동시간을 계산했어요.';
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
+        SnackBar(
+          content:
+              Text(message),
+        ),
+      );
+    } finally {
+      if (mounted &&
+          token ==
+              _routeCalculationToken) {
+        setState(() {
+          _recalculatingRoutes =
+              false;
+        });
+      }
+    }
+  }
+
+  // ============================================================
+  // 시작 시간
+  // ============================================================
+
+  Future<void>
+      _showStartTimePicker() async {
+    final initialMinute =
+        _dayStartMinute ??
+            defaultStartMinute;
+
+    final initialTime =
+        TimeOfDay(
+      hour:
+          (initialMinute ~/ 60) % 24,
+      minute:
+          initialMinute % 60,
+    );
+
+    final picked =
+        await showTimePicker(
+      context: context,
+      initialTime:
+          initialTime,
+      helpText:
+          '여행 시작 시간을 선택하세요',
+      cancelText: '취소',
+      confirmText: '설정',
+    );
+
+    if (picked == null) {
+      return;
+    }
+
+    final newMinute =
+        picked.hour * 60 +
+            picked.minute;
+
+    setState(() {
+      _recalculateTimes(
+        startMinute:
+            newMinute,
+      );
+    });
+
+    await _savePlan();
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(
+      SnackBar(
+        content: Text(
+          '여행 시작 시간이 '
+          '${_formatMinute(newMinute)}로 설정됐어요.',
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // 장소 검색
+  // ============================================================
+
+  Future<void>
+      _showPlaceSearch() async {
+    final place =
+        await showModalBottomSheet<
+            KakaoPlace>(
+      context: context,
+      isScrollControlled:
+          true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor:
+          Colors.white,
+      builder: (_) {
+        return const SizedBox(
+          height: 650,
+          child:
+              PlaceSearchSheet(),
+        );
+      },
+    );
+
+    if (place == null) {
+      return;
+    }
+
+    await _addKakaoPlace(
+      place,
+    );
+  }
+
+  // ============================================================
+  // Kakao 장소 추가
+  // ============================================================
+
+  Future<void> _addKakaoPlace(
+    KakaoPlace place,
+  ) async {
+    final alreadyExists =
+        currentDay.spots.any(
+      (spot) =>
+          spot.kakaoPlaceId ==
+              place.id ||
+          spot.name ==
+              place.name,
     );
 
     if (alreadyExists) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
         const SnackBar(
-          content: Text(
+          content:
+              Text(
             '이미 같은 장소가 일정에 있어요.',
           ),
         ),
@@ -232,57 +478,242 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
       return;
     }
 
-    // ----------------------------------------------------------
-    // 장소 생성
-    // ----------------------------------------------------------
+    final isFirst =
+        currentDay.spots.isEmpty;
 
-    final spot = TravelSpot(
-      name: name,
+    final spot =
+        TravelSpot(
+      name:
+          place.name,
       category:
-          categoryText.isEmpty
-              ? null
-              : categoryText,
-      startMinute: null,
-      durationMinutes: 60,
-      travelMinutesFromPrevious: 0,
+          place.categoryName,
+      address:
+          place.displayAddress,
+      latitude:
+          place.latitude,
+      longitude:
+          place.longitude,
+      kakaoPlaceId:
+          place.id,
+      kakaoPlaceUrl:
+          place.placeUrl,
+      startMinute:
+          null,
+      durationMinutes:
+          _defaultDurationForCategory(
+        place.categoryName,
+      ),
+      travelMinutesFromPrevious:
+          isFirst
+              ? 0
+              : 20,
     );
 
-    // ----------------------------------------------------------
-    // 일정에 추가
-    // ----------------------------------------------------------
-
     setState(() {
-      currentDay.spots.add(spot);
+      currentDay.spots.add(
+        spot,
+      );
+
+      _recalculateTimes();
     });
 
-    // ----------------------------------------------------------
-    // 저장
-    // ----------------------------------------------------------
-
-    await _savePlan();
+    // 새 장소가 추가됐으므로
+    // 실제 좌표 기반 이동시간 다시 계산
+    await _updateTravelTimes(
+      showMessage: false,
+    );
 
     if (!mounted) return;
 
-    Navigator.pop(dialogContext);
-
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(
       SnackBar(
-        content: Text(
-          '$name이(가) 일정에 추가됐어요.',
+        content:
+            Text(
+          '${place.name}이(가) 일정에 추가됐어요.',
         ),
       ),
     );
   }
 
   // ============================================================
-  // 관광지 삭제
+  // 카테고리별 기본 체류시간
   // ============================================================
 
-  Future<void> _removeSpot(
+  int _defaultDurationForCategory(
+    String? category,
+  ) {
+    final value =
+        category ?? '';
+
+    if (value.contains('박물관') ||
+        value.contains('미술관')) {
+      return 90;
+    }
+
+    if (value.contains('공원') ||
+        value.contains('자연')) {
+      return 90;
+    }
+
+    if (value.contains('전망')) {
+      return 60;
+    }
+
+    if (value.contains('식당') ||
+        value.contains('음식')) {
+      return 60;
+    }
+
+    if (value.contains('카페')) {
+      return 60;
+    }
+
+    return 60;
+  }
+
+  // ============================================================
+  // 이동시간 수동 변경
+  // ============================================================
+
+  Future<void> _changeTravelTime(
     TravelSpot spot,
   ) async {
+    final options =
+        <int>[
+      5,
+      10,
+      15,
+      20,
+      30,
+      40,
+      45,
+      60,
+      90,
+    ];
+
+    final selected =
+        await showModalBottomSheet<
+            int>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor:
+          Colors.white,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding:
+                const EdgeInsets.only(
+              bottom: 12,
+            ),
+            child:
+                Column(
+              mainAxisSize:
+                  MainAxisSize.min,
+              children: [
+                const Padding(
+                  padding:
+                      EdgeInsets.fromLTRB(
+                    20,
+                    4,
+                    20,
+                    16,
+                  ),
+                  child:
+                      Align(
+                    alignment:
+                        Alignment.centerLeft,
+                    child:
+                        Text(
+                      '이동 시간 직접 설정',
+                      style:
+                          TextStyle(
+                        fontSize:
+                            21,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                ...options.map(
+                  (
+                    minutes,
+                  ) {
+                    final selected =
+                        spot.travelMinutesFromPrevious ==
+                            minutes;
+
+                    return ListTile(
+                      leading:
+                          Icon(
+                        Icons
+                            .directions_walk_outlined,
+                        color: selected
+                            ? Theme.of(
+                                context,
+                              )
+                                .colorScheme
+                                .primary
+                            : Colors
+                                .grey,
+                      ),
+                      title:
+                          Text(
+                        _durationText(
+                          minutes,
+                        ),
+                      ),
+                      trailing:
+                          selected
+                              ? Icon(
+                                  Icons
+                                      .check,
+                                  color: Theme.of(
+                                    context,
+                                  )
+                                      .colorScheme
+                                      .primary,
+                                )
+                              : null,
+                      onTap:
+                          () {
+                        Navigator.pop(
+                          sheetContext,
+                          minutes,
+                        );
+                      },
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selected == null) {
+      return;
+    }
+
+    final index =
+        currentDay.spots
+            .indexOf(spot);
+
+    if (index == -1) {
+      return;
+    }
+
     setState(() {
-      currentDay.spots.remove(spot);
+      currentDay.spots[index] =
+          spot.copyWith(
+        travelMinutesFromPrevious:
+            selected,
+      );
+
+      _recalculateTimes();
     });
 
     await _savePlan();
@@ -295,8 +726,10 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
   Future<void> _changeDuration(
     TravelSpot spot,
   ) async {
-    final options = <int>[
+    final options =
+        <int>[
       30,
+      45,
       60,
       90,
       120,
@@ -305,56 +738,101 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
     ];
 
     final selected =
-        await showModalBottomSheet<int>(
+        await showModalBottomSheet<
+            int>(
       context: context,
-      builder: (context) {
+      showDragHandle: true,
+      backgroundColor:
+          Colors.white,
+      builder: (sheetContext) {
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Padding(
-                padding: EdgeInsets.all(20),
-                child: Align(
-                  alignment:
-                      Alignment.centerLeft,
-                  child: Text(
-                    '머무르는 시간',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight:
-                          FontWeight.bold,
+          child: Padding(
+            padding:
+                const EdgeInsets.only(
+              bottom: 12,
+            ),
+            child:
+                Column(
+              mainAxisSize:
+                  MainAxisSize.min,
+              children: [
+                const Padding(
+                  padding:
+                      EdgeInsets.fromLTRB(
+                    20,
+                    4,
+                    20,
+                    16,
+                  ),
+                  child:
+                      Align(
+                    alignment:
+                        Alignment.centerLeft,
+                    child:
+                        Text(
+                      '머무르는 시간',
+                      style:
+                          TextStyle(
+                        fontSize:
+                            21,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
-              ),
+                ...options.map(
+                  (
+                    minutes,
+                  ) {
+                    final selected =
+                        spot.durationMinutes ==
+                            minutes;
 
-              ...options.map(
-                (minutes) {
-                  final isSelected =
-                      spot.durationMinutes ==
-                          minutes;
-
-                  return ListTile(
-                    title: Text(
-                      _durationText(minutes),
-                    ),
-                    trailing: isSelected
-                        ? const Icon(
-                            Icons.check,
-                          )
-                        : null,
-                    onTap: () {
-                      Navigator.pop(
-                        context,
-                        minutes,
-                      );
-                    },
-                  );
-                },
-              ),
-
-              const SizedBox(height: 10),
-            ],
+                    return ListTile(
+                      leading:
+                          Icon(
+                        Icons
+                            .schedule_outlined,
+                        color: selected
+                            ? Theme.of(
+                                context,
+                              )
+                                .colorScheme
+                                .primary
+                            : Colors
+                                .grey,
+                      ),
+                      title:
+                          Text(
+                        _durationText(
+                          minutes,
+                        ),
+                      ),
+                      trailing:
+                          selected
+                              ? Icon(
+                                  Icons
+                                      .check,
+                                  color: Theme.of(
+                                    context,
+                                  )
+                                      .colorScheme
+                                      .primary,
+                                )
+                              : null,
+                      onTap:
+                          () {
+                        Navigator.pop(
+                          sheetContext,
+                          minutes,
+                        );
+                      },
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -364,356 +842,249 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
       return;
     }
 
-    setState(() {
-      final index =
-          currentDay.spots.indexOf(spot);
+    final index =
+        currentDay.spots
+            .indexOf(spot);
 
-      if (index != -1) {
-        currentDay.spots[index] =
-            spot.copyWith(
-          durationMinutes: selected,
-        );
-      }
+    if (index == -1) {
+      return;
+    }
+
+    setState(() {
+      currentDay.spots[index] =
+          spot.copyWith(
+        durationMinutes:
+            selected,
+      );
+
+      _recalculateTimes();
     });
 
     await _savePlan();
   }
 
   // ============================================================
-  // 체류시간 텍스트
+  // 삭제
   // ============================================================
 
-  String _durationText(int minutes) {
-    if (minutes < 60) {
-      return '$minutes분';
-    }
+  Future<void> _removeSpot(
+    TravelSpot spot,
+  ) async {
+    setState(() {
+      currentDay.spots
+          .remove(spot);
 
-    final hour = minutes ~/ 60;
-    final remain = minutes % 60;
+      if (currentDay.spots
+          .isNotEmpty) {
+        currentDay.spots[0] =
+            currentDay.spots[0]
+                .copyWith(
+          travelMinutesFromPrevious:
+              0,
+        );
 
-    if (remain == 0) {
-      return '$hour시간';
-    }
+        _recalculateTimes();
+      }
+    });
 
-    return '$hour시간 $remain분';
+    await _updateTravelTimes(
+      showMessage: false,
+    );
+
+    await _savePlan();
   }
 
   // ============================================================
-  // 일정 카드
+  // ★ 드래그 순서 변경
   // ============================================================
 
-  Widget _buildSpotCard(
-    TravelSpot spot,
-    int index,
-  ) {
-    return Dismissible(
-      key: ValueKey(
-        '${currentDay.day}_${spot.name}_$index',
+  Future<void> _reorderSpots(
+    int oldIndex,
+    int newIndex,
+  ) async {
+    if (newIndex >
+        oldIndex) {
+      newIndex -= 1;
+    }
+
+    setState(() {
+      final spot =
+          currentDay.spots
+              .removeAt(
+        oldIndex,
+      );
+
+      currentDay.spots.insert(
+        newIndex,
+        spot,
+      );
+
+      if (currentDay.spots
+          .isNotEmpty) {
+        currentDay.spots[0] =
+            currentDay.spots[0]
+                .copyWith(
+          travelMinutesFromPrevious:
+              0,
+        );
+      }
+
+      _recalculateTimes();
+    });
+
+    // ★ 순서가 바뀌었으므로
+    // ★ 새로운 구간들을 실제 API로 재계산
+    await _updateTravelTimes(
+      showMessage: true,
+    );
+
+    await _savePlan();
+  }
+
+  // ============================================================
+  // 전체 시간 재계산
+  // ============================================================
+
+  Future<void> _resetTimes() async {
+    if (currentDay.spots
+        .isEmpty) {
+      return;
+    }
+
+    final start =
+        _dayStartMinute ??
+            defaultStartMinute;
+
+    setState(() {
+      _recalculateTimes(
+        startMinute:
+            start,
+      );
+    });
+
+    await _savePlan();
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(
+      const SnackBar(
+        content:
+            Text(
+          '일정 시간이 다시 계산됐어요.',
+        ),
       ),
-      direction:
-          DismissDirection.endToStart,
+    );
+  }
 
-      background: Container(
-        margin: const EdgeInsets.only(
-          bottom: 12,
+  // ============================================================
+  // Day 요약
+  // ============================================================
+
+  Widget _buildDaySummary() {
+    final spots =
+        currentDay.spots;
+
+    int totalDuration = 0;
+    int totalTravel = 0;
+
+    for (final spot
+        in spots) {
+      totalDuration +=
+          spot.durationMinutes;
+
+      totalTravel +=
+          spot.travelMinutesFromPrevious;
+    }
+
+    final lastSpot =
+        spots.isEmpty
+            ? null
+            : spots.last;
+
+    int? finishMinute;
+
+    if (lastSpot != null &&
+        lastSpot.startMinute !=
+            null) {
+      finishMinute =
+          lastSpot.startMinute! +
+              lastSpot.durationMinutes;
+    }
+
+    return Container(
+      margin:
+          const EdgeInsets.fromLTRB(
+        16,
+        14,
+        16,
+        14,
+      ),
+      padding:
+          const EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: 15,
+      ),
+      decoration:
+          BoxDecoration(
+        color:
+            Colors.grey.shade50,
+        borderRadius:
+            BorderRadius.circular(
+          18,
         ),
-        alignment:
-            Alignment.centerRight,
-        padding:
-            const EdgeInsets.only(
-          right: 20,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.red.shade100,
-          borderRadius:
-              BorderRadius.circular(18),
-        ),
-        child: const Icon(
-          Icons.delete_outline,
-          color: Colors.red,
+        border:
+            Border.all(
+          color:
+              Colors.grey.shade200,
         ),
       ),
-
-      onDismissed: (_) {
-        _removeSpot(spot);
-      },
-
       child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
         children: [
-          // ------------------------------------------------------
-          // 시간
-          // ------------------------------------------------------
-
-          SizedBox(
-            width: 52,
-            child: Column(
-              children: [
-                Text(
-                  _formatMinute(
-                    spot.startMinute,
-                  ),
-                  style:
-                      const TextStyle(
-                    fontSize: 13,
-                    fontWeight:
-                        FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 8,
-                ),
-
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration:
-                      const BoxDecoration(
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ],
+          Expanded(
+            child:
+                _SummaryItem(
+              title:
+                  '방문 장소',
+              value:
+                  '${spots.length}곳',
             ),
           ),
-
-          // ------------------------------------------------------
-          // Timeline
-          // ------------------------------------------------------
-
-          Column(
-            children: [
-              Container(
-                width: 2,
-                height: 24,
-                color:
-                    Colors.grey.shade300,
-              ),
-
-              Container(
-                width: 12,
-                height: 12,
-                decoration:
-                    BoxDecoration(
-                  shape:
-                      BoxShape.circle,
-                  border: Border.all(
-                    width: 3,
-                    color:
-                        Theme.of(context)
-                            .colorScheme
-                            .primary,
-                  ),
-                ),
-              ),
-
-              if (index <
-                  currentDay.spots.length -
-                      1)
-                Container(
-                  width: 2,
-                  height: 150,
-                  color:
-                      Colors.grey.shade300,
-                ),
-            ],
-          ),
-
-          const SizedBox(width: 12),
-
-          // ------------------------------------------------------
-          // 카드
-          // ------------------------------------------------------
-
           Expanded(
-            child: Card(
-              elevation: 0,
-              margin:
-                  const EdgeInsets.only(
-                bottom: 12,
+            child:
+                _SummaryItem(
+              title:
+                  '체류',
+              value:
+                  _durationText(
+                totalDuration,
               ),
-              shape:
-                  RoundedRectangleBorder(
-                borderRadius:
-                    BorderRadius.circular(
-                  18,
-                ),
-                side: BorderSide(
-                  color:
-                      Colors.grey.shade200,
-                ),
+            ),
+          ),
+          Expanded(
+            child:
+                _SummaryItem(
+              title:
+                  '이동',
+              value:
+                  _durationText(
+                totalTravel,
               ),
-              child: Padding(
-                padding:
-                    const EdgeInsets.all(
-                  16,
-                ),
-                child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment
-                          .start,
-                  children: [
-                    // ------------------------------------------------
-                    // 장소명 + 메뉴
-                    // ------------------------------------------------
-
-                    Row(
-                      crossAxisAlignment:
-                          CrossAxisAlignment
-                              .start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            spot.name,
-                            style:
-                                const TextStyle(
-                              fontSize: 18,
-                              fontWeight:
-                                  FontWeight
-                                      .bold,
-                            ),
-                          ),
+            ),
+          ),
+          Expanded(
+            child:
+                _SummaryItem(
+              title:
+                  '종료 예상',
+              value:
+                  finishMinute ==
+                          null
+                      ? '--:--'
+                      : _formatMinute(
+                          finishMinute,
                         ),
-
-                        PopupMenuButton<
-                            String>(
-                          onSelected:
-                              (value) {
-                            if (value ==
-                                'duration') {
-                              _changeDuration(
-                                spot,
-                              );
-                            }
-
-                            if (value ==
-                                'delete') {
-                              _removeSpot(
-                                spot,
-                              );
-                            }
-                          },
-                          itemBuilder:
-                              (context) =>
-                                  const [
-                            PopupMenuItem(
-                              value:
-                                  'duration',
-                              child: Text(
-                                '체류시간 변경',
-                              ),
-                            ),
-                            PopupMenuItem(
-                              value:
-                                  'delete',
-                              child: Text(
-                                '삭제',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-
-                    // ------------------------------------------------
-                    // 카테고리
-                    // ------------------------------------------------
-
-                    if (spot.category !=
-                        null) ...[
-                      const SizedBox(
-                        height: 5,
-                      ),
-                      Text(
-                        spot.category!,
-                        style: TextStyle(
-                          color:
-                              Colors.grey
-                                  .shade600,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-
-                    // ------------------------------------------------
-                    // 주소
-                    // ------------------------------------------------
-
-                    if (spot.address !=
-                        null) ...[
-                      const SizedBox(
-                        height: 3,
-                      ),
-                      Text(
-                        spot.address!,
-                        style: TextStyle(
-                          color:
-                              Colors.grey
-                                  .shade500,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-
-                    const SizedBox(
-                      height: 14,
-                    ),
-
-                    // ------------------------------------------------
-                    // 정보
-                    // ------------------------------------------------
-
-                    Row(
-                      children: [
-                        _InfoChip(
-                          icon:
-                              Icons.schedule,
-                          text:
-                              _durationText(
-                            spot.durationMinutes,
-                          ),
-                        ),
-
-                        const SizedBox(
-                          width: 8,
-                        ),
-
-                        if (spot.snobScore !=
-                            null)
-                          _InfoChip(
-                            icon:
-                                Icons
-                                    .eco_outlined,
-                            text:
-                                'SNOB ${spot.snobScore!.toStringAsFixed(0)}',
-                          ),
-                      ],
-                    ),
-
-                    // ------------------------------------------------
-                    // 혼잡도
-                    // ------------------------------------------------
-
-                    if (spot.congestion !=
-                        null) ...[
-                      const SizedBox(
-                        height: 10,
-                      ),
-                      Text(
-                        '평균 혼잡도 '
-                        '${spot.congestion!.toStringAsFixed(1)}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color:
-                              Colors.grey
-                                  .shade600,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
             ),
           ),
         ],
@@ -722,65 +1093,181 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
   }
 
   // ============================================================
-  // 일정 요약
+  // 시작시간 카드
   // ============================================================
 
-  Widget _buildDaySummary() {
-    final spots = currentDay.spots;
-
-    int totalDuration = 0;
-    int totalTravel = 0;
-
-    for (final spot in spots) {
-      totalDuration +=
-          spot.durationMinutes;
-
-      totalTravel +=
-          spot.travelMinutesFromPrevious;
-    }
+  Widget _buildStartTimeCard() {
+    final start =
+        _dayStartMinute;
 
     return Container(
       margin:
           const EdgeInsets.fromLTRB(
         16,
-        8,
+        4,
         16,
-        12,
+        2,
       ),
       padding:
-          const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+          const EdgeInsets.all(
+        18,
+      ),
+      decoration:
+          BoxDecoration(
         borderRadius:
-            BorderRadius.circular(18),
+            BorderRadius.circular(
+          20,
+        ),
+        gradient:
+            LinearGradient(
+          colors: [
+            Theme.of(context)
+                .colorScheme
+                .primary
+                .withOpacity(
+                  0.10,
+                ),
+            Theme.of(context)
+                .colorScheme
+                .primary
+                .withOpacity(
+                  0.04,
+                ),
+          ],
+        ),
+        border:
+            Border.all(
+          color: Theme.of(
+            context,
+          )
+              .colorScheme
+              .primary
+              .withOpacity(
+                0.16,
+              ),
+        ),
       ),
       child: Row(
         children: [
-          Expanded(
-            child: _SummaryItem(
-              title: '방문 장소',
-              value:
-                  '${spots.length}곳',
-            ),
-          ),
-
-          Expanded(
-            child: _SummaryItem(
-              title: '예상 체류',
-              value:
-                  _durationText(
-                totalDuration,
+          Container(
+            width: 46,
+            height: 46,
+            decoration:
+                BoxDecoration(
+              color: Theme.of(
+                context,
+              )
+                  .colorScheme
+                  .primary
+                  .withOpacity(
+                    0.12,
+                  ),
+              borderRadius:
+                  BorderRadius
+                      .circular(
+                14,
               ),
             ),
+            child:
+                Icon(
+              Icons
+                  .wb_sunny_outlined,
+              color:
+                  Theme.of(
+                context,
+              )
+                      .colorScheme
+                      .primary,
+            ),
           ),
-
+          const SizedBox(
+            width: 14,
+          ),
           Expanded(
-            child: _SummaryItem(
-              title: '이동',
-              value:
-                  _durationText(
-                totalTravel,
+            child:
+                Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment
+                      .start,
+              children: [
+                const Text(
+                  '오늘 여행 시작',
+                  style:
+                      TextStyle(
+                    fontSize:
+                        13,
+                    fontWeight:
+                        FontWeight
+                            .w600,
+                  ),
+                ),
+                const SizedBox(
+                  height: 3,
+                ),
+                Text(
+                  start ==
+                          null
+                      ? '시작 시간을 정해주세요'
+                      : '${_formatMinute(start)}부터 시작',
+                  style:
+                      const TextStyle(
+                    fontSize:
+                        17,
+                    fontWeight:
+                        FontWeight
+                            .bold,
+                  ),
+                ),
+                if (start !=
+                    null) ...[
+                  const SizedBox(
+                    height: 3,
+                  ),
+                  Text(
+                    '실제 이동시간을 기준으로 이후 일정이 자동 계산됩니다.',
+                    style:
+                        TextStyle(
+                      fontSize:
+                          11,
+                      color: Colors
+                          .grey
+                          .shade600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(
+            width: 8,
+          ),
+          OutlinedButton(
+            onPressed:
+                _showStartTimePicker,
+            style:
+                OutlinedButton.styleFrom(
+              padding:
+                  const EdgeInsets
+                      .symmetric(
+                horizontal:
+                    13,
+                vertical:
+                    10,
               ),
+              shape:
+                  RoundedRectangleBorder(
+                borderRadius:
+                    BorderRadius
+                        .circular(
+                  12,
+                ),
+              ),
+            ),
+            child:
+                Text(
+              start == null
+                  ? '설정'
+                  : '변경',
             ),
           ),
         ],
@@ -795,19 +1282,23 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
   Widget _buildDaySelector() {
     return SizedBox(
       height: 72,
-      child: ListView.builder(
+      child:
+          ListView.builder(
         scrollDirection:
             Axis.horizontal,
         padding:
-            const EdgeInsets.symmetric(
+            const EdgeInsets
+                .symmetric(
           horizontal: 16,
         ),
         itemCount:
-            travelPlan.days.length,
+            travelPlan.days
+                .length,
         itemBuilder:
             (context, index) {
           final day =
-              travelPlan.days[index];
+              travelPlan
+                  .days[index];
 
           final selected =
               index ==
@@ -819,16 +1310,23 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
                 selectedDayIndex =
                     index;
               });
+
+              _updateTravelTimes(
+                showMessage:
+                    false,
+              );
             },
             child:
                 AnimatedContainer(
               duration:
                   const Duration(
-                milliseconds: 200,
+                milliseconds:
+                    200,
               ),
               width: 76,
               margin:
-                  const EdgeInsets.only(
+                  const EdgeInsets
+                      .only(
                 right: 10,
               ),
               decoration:
@@ -842,7 +1340,9 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
                     : Colors.white,
                 borderRadius:
                     BorderRadius
-                        .circular(16),
+                        .circular(
+                  16,
+                ),
                 border:
                     Border.all(
                   color: selected
@@ -855,34 +1355,42 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
                           .shade200,
                 ),
               ),
-              child: Column(
+              child:
+                  Column(
                 mainAxisAlignment:
                     MainAxisAlignment
                         .center,
                 children: [
                   Text(
                     'DAY ${day.day}',
-                    style: TextStyle(
-                      fontSize: 12,
+                    style:
+                        TextStyle(
+                      fontSize:
+                          12,
                       color: selected
-                          ? Colors.white
-                          : Colors.grey,
+                          ? Colors
+                              .white
+                          : Colors
+                              .grey,
                     ),
                   ),
-
                   const SizedBox(
                     height: 4,
                   ),
-
                   Text(
                     '${day.spots.length}곳',
-                    style: TextStyle(
-                      fontSize: 16,
+                    style:
+                        TextStyle(
+                      fontSize:
+                          16,
                       fontWeight:
-                          FontWeight.bold,
+                          FontWeight
+                              .bold,
                       color: selected
-                          ? Colors.white
-                          : Colors.black,
+                          ? Colors
+                              .white
+                          : Colors
+                              .black,
                     ),
                   ),
                 ],
@@ -895,6 +1403,874 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
   }
 
   // ============================================================
+  // 이동 구간
+  // ============================================================
+
+  Widget _buildTravelSegment(
+    TravelSpot spot,
+    int index,
+  ) {
+    if (index == 0) {
+      return const SizedBox.shrink();
+    }
+
+    final minutes =
+        spot.travelMinutesFromPrevious;
+
+    return Padding(
+      padding:
+          const EdgeInsets.only(
+        left: 61,
+        right: 16,
+        top: 2,
+        bottom: 2,
+      ),
+      child:
+          InkWell(
+        borderRadius:
+            BorderRadius.circular(
+          14,
+        ),
+        onTap: () =>
+            _changeTravelTime(
+          spot,
+        ),
+        child:
+            Container(
+          padding:
+              const EdgeInsets
+                  .symmetric(
+            horizontal:
+                12,
+            vertical:
+                9,
+          ),
+          decoration:
+              BoxDecoration(
+            color:
+                Colors.grey.shade50,
+            borderRadius:
+                BorderRadius
+                    .circular(
+              14,
+            ),
+            border:
+                Border.all(
+              color:
+                  Colors.grey.shade200,
+            ),
+          ),
+          child:
+              Row(
+            children: [
+              Icon(
+                Icons
+                    .more_vert,
+                size: 18,
+                color:
+                    Colors.grey
+                        .shade500,
+              ),
+              const SizedBox(
+                width: 7,
+              ),
+              Icon(
+                Icons
+                    .directions_walk_outlined,
+                size: 17,
+                color:
+                    Colors.grey
+                        .shade600,
+              ),
+              const SizedBox(
+                width: 7,
+              ),
+              Text(
+                '실제 도보 경로',
+                style:
+                    TextStyle(
+                  fontSize:
+                      12,
+                  color:
+                      Colors.grey
+                          .shade600,
+                  fontWeight:
+                      FontWeight
+                          .w500,
+                ),
+              ),
+              const SizedBox(
+                width: 6,
+              ),
+              Text(
+                _durationText(
+                  minutes,
+                ),
+                style:
+                    const TextStyle(
+                  fontSize:
+                      12,
+                  fontWeight:
+                      FontWeight
+                          .bold,
+                ),
+              ),
+              const Spacer(),
+              Icon(
+                Icons
+                    .edit_outlined,
+                size: 15,
+                color:
+                    Colors.grey
+                        .shade500,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // 장소 카드
+  // ============================================================
+
+  Widget _buildSpotCard(
+    TravelSpot spot,
+    int index,
+  ) {
+    final start =
+        spot.startMinute;
+
+    final finish =
+        start == null
+            ? null
+            : start +
+                spot.durationMinutes;
+
+    return Padding(
+      padding:
+          const EdgeInsets.only(
+        bottom: 4,
+      ),
+      child:
+          Row(
+        crossAxisAlignment:
+            CrossAxisAlignment
+                .start,
+        children: [
+          SizedBox(
+            width: 52,
+            child:
+                Column(
+              children: [
+                Text(
+                  _formatMinute(
+                    start,
+                  ),
+                  style:
+                      const TextStyle(
+                    fontSize:
+                        12,
+                    fontWeight:
+                        FontWeight
+                            .bold,
+                  ),
+                ),
+                const SizedBox(
+                  height: 5,
+                ),
+                Text(
+                  finish == null
+                      ? ''
+                      : _formatMinute(
+                          finish,
+                        ),
+                  style:
+                      TextStyle(
+                    fontSize:
+                        10,
+                    color: Colors
+                        .grey
+                        .shade500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          SizedBox(
+            width: 22,
+            child:
+                Column(
+              children: [
+                Container(
+                  width: 2,
+                  height: 8,
+                  color: Colors
+                      .grey
+                      .shade300,
+                ),
+                Container(
+                  width: 14,
+                  height: 14,
+                  decoration:
+                      BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    )
+                        .colorScheme
+                        .primary,
+                    shape:
+                        BoxShape
+                            .circle,
+                  ),
+                ),
+                if (index <
+                    currentDay
+                            .spots
+                            .length -
+                        1)
+                  Container(
+                    width: 2,
+                    height: 120,
+                    color: Colors
+                        .grey
+                        .shade300,
+                  ),
+              ],
+            ),
+          ),
+
+          const SizedBox(
+            width: 10,
+          ),
+
+          Expanded(
+            child:
+                Dismissible(
+              key:
+                  ValueKey(
+                '${currentDay.day}_${spot.kakaoPlaceId ?? spot.name}_$index',
+              ),
+              direction:
+                  DismissDirection
+                      .endToStart,
+              background:
+                  Container(
+                margin:
+                    const EdgeInsets
+                        .only(
+                  bottom: 10,
+                ),
+                alignment:
+                    Alignment
+                        .centerRight,
+                padding:
+                    const EdgeInsets
+                        .only(
+                  right: 20,
+                ),
+                decoration:
+                    BoxDecoration(
+                  color: Colors
+                      .red
+                      .shade100,
+                  borderRadius:
+                      BorderRadius
+                          .circular(
+                    18,
+                  ),
+                ),
+                child:
+                    const Icon(
+                  Icons
+                      .delete_outline,
+                  color:
+                      Colors.red,
+                ),
+              ),
+              onDismissed:
+                  (_) {
+                _removeSpot(
+                  spot,
+                );
+              },
+              child:
+                  Card(
+                elevation:
+                    0,
+                margin:
+                    const EdgeInsets
+                        .only(
+                  bottom: 10,
+                ),
+                shape:
+                    RoundedRectangleBorder(
+                  borderRadius:
+                      BorderRadius
+                          .circular(
+                    18,
+                  ),
+                  side:
+                      BorderSide(
+                    color: Colors
+                        .grey
+                        .shade200,
+                  ),
+                ),
+                child:
+                    Padding(
+                  padding:
+                      const EdgeInsets
+                          .all(
+                    16,
+                  ),
+                  child:
+                      Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment
+                            .start,
+                    children: [
+                      Row(
+                        crossAxisAlignment:
+                            CrossAxisAlignment
+                                .start,
+                        children: [
+                          Expanded(
+                            child:
+                                Text(
+                              spot.name,
+                              style:
+                                  const TextStyle(
+                                fontSize:
+                                    17,
+                                fontWeight:
+                                    FontWeight
+                                        .bold,
+                              ),
+                            ),
+                          ),
+                          ReorderableDragStartListener(
+                            index:
+                                index,
+                            child:
+                                Padding(
+                              padding:
+                                  const EdgeInsets
+                                      .only(
+                                left:
+                                    8,
+                              ),
+                              child:
+                                  Icon(
+                                Icons
+                                    .drag_handle,
+                                color: Colors
+                                    .grey
+                                    .shade400,
+                              ),
+                            ),
+                          ),
+                          PopupMenuButton<
+                              String>(
+                            padding:
+                                EdgeInsets.zero,
+                            icon:
+                                Icon(
+                              Icons
+                                  .more_horiz,
+                              color: Colors
+                                  .grey
+                                  .shade600,
+                            ),
+                            onSelected:
+                                (value) {
+                              if (value ==
+                                  'duration') {
+                                _changeDuration(
+                                  spot,
+                                );
+                              }
+
+                              if (value ==
+                                  'travel') {
+                                _changeTravelTime(
+                                  spot,
+                                );
+                              }
+
+                              if (value ==
+                                  'route') {
+                                _updateTravelTimes();
+                              }
+
+                              if (value ==
+                                  'delete') {
+                                _removeSpot(
+                                  spot,
+                                );
+                              }
+                            },
+                            itemBuilder:
+                                (_) =>
+                                    const [
+                              PopupMenuItem(
+                                value:
+                                    'duration',
+                                child:
+                                    Text(
+                                  '체류시간 변경',
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value:
+                                    'travel',
+                                child:
+                                    Text(
+                                  '이동시간 직접 변경',
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value:
+                                    'route',
+                                child:
+                                    Text(
+                                  '실제 경로로 다시 계산',
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value:
+                                    'delete',
+                                child:
+                                    Text(
+                                  '삭제',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+
+                      if (spot.category !=
+                          null) ...[
+                        const SizedBox(
+                          height: 5,
+                        ),
+                        Text(
+                          spot.category!,
+                          style:
+                              TextStyle(
+                            color:
+                                Colors.grey.shade600,
+                            fontSize:
+                                12,
+                          ),
+                        ),
+                      ],
+
+                      if (spot.address !=
+                          null) ...[
+                        const SizedBox(
+                          height: 3,
+                        ),
+                        Text(
+                          spot.address!,
+                          maxLines:
+                              1,
+                          overflow:
+                              TextOverflow
+                                  .ellipsis,
+                          style:
+                              TextStyle(
+                            color:
+                                Colors.grey.shade500,
+                            fontSize:
+                                11,
+                          ),
+                        ),
+                      ],
+
+                      const SizedBox(
+                        height: 14,
+                      ),
+
+                      Container(
+                        padding:
+                            const EdgeInsets
+                                .symmetric(
+                          horizontal:
+                              12,
+                          vertical:
+                              10,
+                        ),
+                        decoration:
+                            BoxDecoration(
+                          color: Colors
+                              .grey
+                              .shade50,
+                          borderRadius:
+                              BorderRadius
+                                  .circular(
+                            12,
+                          ),
+                        ),
+                        child:
+                            Row(
+                          children: [
+                            Icon(
+                              Icons
+                                  .schedule_outlined,
+                              size:
+                                  16,
+                              color:
+                                  Theme.of(
+                                context,
+                              )
+                                      .colorScheme
+                                      .primary,
+                            ),
+                            const SizedBox(
+                              width:
+                                  7,
+                            ),
+                            Text(
+                              start ==
+                                      null
+                                  ? '시간 미정'
+                                  : '${_formatMinute(start)} → ${_formatMinute(finish)}',
+                              style:
+                                  const TextStyle(
+                                fontSize:
+                                    12,
+                                fontWeight:
+                                    FontWeight
+                                        .w600,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              _durationText(
+                                spot
+                                    .durationMinutes,
+                              ),
+                              style:
+                                  TextStyle(
+                                fontSize:
+                                    11,
+                                color:
+                                    Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(
+                        height: 10,
+                      ),
+
+                      Wrap(
+                        spacing:
+                            7,
+                        runSpacing:
+                            7,
+                        children: [
+                          _InfoChip(
+                            icon:
+                                Icons.schedule,
+                            text:
+                                '체류 ${_durationText(spot.durationMinutes)}',
+                          ),
+
+                          if (index >
+                              0)
+                            _InfoChip(
+                              icon:
+                                  Icons.directions_walk_outlined,
+                              text:
+                                  '이동 ${_durationText(spot.travelMinutesFromPrevious)}',
+                            ),
+
+                          if (spot.snobScore !=
+                              null)
+                            _InfoChip(
+                              icon:
+                                  Icons.eco_outlined,
+                              text:
+                                  'SNOB ${spot.snobScore!.toStringAsFixed(0)}',
+                            ),
+
+                          if (spot.latitude !=
+                                  null &&
+                              spot.longitude !=
+                                  null)
+                            const _InfoChip(
+                              icon:
+                                  Icons.gps_fixed,
+                              text:
+                                  '좌표 확인',
+                            ),
+                        ],
+                      ),
+
+                      if (spot.congestion !=
+                          null) ...[
+                        const SizedBox(
+                          height: 10,
+                        ),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons
+                                  .people_outline,
+                              size:
+                                  14,
+                              color: Colors
+                                  .grey
+                                  .shade600,
+                            ),
+                            const SizedBox(
+                              width:
+                                  5,
+                            ),
+                            Text(
+                              '평균 혼잡도 '
+                              '${spot.congestion!.toStringAsFixed(1)}',
+                              style:
+                                  TextStyle(
+                                fontSize:
+                                    11,
+                                color:
+                                    Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // Timeline
+  // ============================================================
+
+  Widget _buildTimeline() {
+    return Stack(
+      children: [
+        ReorderableListView.builder(
+          padding:
+              const EdgeInsets.fromLTRB(
+            16,
+            18,
+            16,
+            120,
+          ),
+          buildDefaultDragHandles:
+              false,
+          itemCount:
+              currentDay
+                  .spots
+                  .length,
+          onReorder:
+              _reorderSpots,
+          itemBuilder:
+              (context, index) {
+            final spot =
+                currentDay
+                    .spots[index];
+
+            return Column(
+              key:
+                  ValueKey(
+                'timeline_${currentDay.day}_${spot.kakaoPlaceId ?? spot.name}_$index',
+              ),
+              children: [
+                if (index >
+                    0)
+                  _buildTravelSegment(
+                    spot,
+                    index,
+                  ),
+                _buildSpotCard(
+                  spot,
+                  index,
+                ),
+              ],
+            );
+          },
+        ),
+
+        if (_recalculatingRoutes)
+          Positioned(
+            top: 10,
+            left: 20,
+            right: 20,
+            child:
+                Container(
+              padding:
+                  const EdgeInsets
+                      .symmetric(
+                horizontal:
+                    14,
+                vertical:
+                    10,
+              ),
+              decoration:
+                  BoxDecoration(
+                color:
+                    Colors.black87,
+                borderRadius:
+                    BorderRadius
+                        .circular(
+                  14,
+                ),
+              ),
+              child:
+                  const Row(
+                mainAxisSize:
+                    MainAxisSize
+                        .min,
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child:
+                        CircularProgressIndicator(
+                      strokeWidth:
+                          2,
+                      color:
+                          Colors.white,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 10,
+                  ),
+                  Text(
+                    '실제 이동 경로 계산 중...',
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.white,
+                      fontSize:
+                          12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // Empty
+  // ============================================================
+
+  Widget _buildEmptyState() {
+    return Center(
+      child:
+          Padding(
+        padding:
+            const EdgeInsets.all(
+          30,
+        ),
+        child:
+            Column(
+          mainAxisAlignment:
+              MainAxisAlignment
+                  .center,
+          children: [
+            Container(
+              width: 82,
+              height: 82,
+              decoration:
+                  BoxDecoration(
+                color: Theme.of(
+                  context,
+                )
+                    .colorScheme
+                    .primary
+                    .withOpacity(
+                      0.08,
+                    ),
+                shape:
+                    BoxShape
+                        .circle,
+              ),
+              child:
+                  Icon(
+                Icons
+                    .route_outlined,
+                size: 42,
+                color: Theme.of(
+                  context,
+                )
+                    .colorScheme
+                    .primary,
+              ),
+            ),
+            const SizedBox(
+              height: 22,
+            ),
+            const Text(
+              '아직 일정이 없어요.',
+              style:
+                  TextStyle(
+                fontSize:
+                    20,
+                fontWeight:
+                    FontWeight
+                        .bold,
+              ),
+            ),
+            const SizedBox(
+              height: 8,
+            ),
+            Text(
+              '장소를 검색해서 추가하면\n'
+              '실제 위치를 기준으로 이동시간도 계산해드려요.',
+              textAlign:
+                  TextAlign.center,
+              style:
+                  TextStyle(
+                color:
+                    Colors.grey.shade600,
+                height:
+                    1.5,
+              ),
+            ),
+            const SizedBox(
+              height: 24,
+            ),
+            FilledButton.icon(
+              onPressed:
+                  _showPlaceSearch,
+              icon:
+                  const Icon(
+                Icons.search,
+              ),
+              label:
+                  const Text(
+                '장소 검색',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
   // Build
   // ============================================================
 
@@ -902,29 +2278,70 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
   Widget build(
     BuildContext context,
   ) {
+    final hasSpots =
+        currentDay
+            .spots
+            .isNotEmpty;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
+      appBar:
+          AppBar(
+        title:
+            Text(
           '${travelPlan.regionName} 여행',
         ),
         actions: [
-          IconButton(
-            icon:
-                const Icon(
-              Icons.more_vert,
-            ),
-            onPressed: () {},
+          PopupMenuButton<
+              String>(
+            onSelected:
+                (value) {
+              if (value ==
+                  'route') {
+                _updateTravelTimes();
+              }
+
+              if (value ==
+                  'reset_time') {
+                _resetTimes();
+              }
+            },
+            itemBuilder:
+                (_) =>
+                    const [
+              PopupMenuItem(
+                value:
+                    'route',
+                child:
+                    Text(
+                  '실제 이동시간 다시 계산',
+                ),
+              ),
+              PopupMenuItem(
+                value:
+                    'reset_time',
+                child:
+                    Text(
+                  '일정 시간 다시 계산',
+                ),
+              ),
+            ],
           ),
         ],
       ),
-
-      body: Column(
+      body:
+          Column(
         children: [
           const SizedBox(
             height: 8,
           ),
 
           _buildDaySelector(),
+
+          const SizedBox(
+            height: 10,
+          ),
+
+          _buildStartTimeCard(),
 
           _buildDaySummary(),
 
@@ -933,117 +2350,23 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
           ),
 
           Expanded(
-            child: currentDay
-                    .spots
-                    .isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-                    padding:
-                        const EdgeInsets
-                            .fromLTRB(
-                      16,
-                      20,
-                      16,
-                      100,
-                    ),
-                    itemCount:
-                        currentDay
-                            .spots
-                            .length,
-                    itemBuilder:
-                        (context, index) {
-                      return _buildSpotCard(
-                        currentDay
-                            .spots[index],
-                        index,
-                      );
-                    },
-                  ),
+            child: hasSpots
+                ? _buildTimeline()
+                : _buildEmptyState(),
           ),
         ],
       ),
-
       floatingActionButton:
           FloatingActionButton.extended(
         onPressed:
-            _showAddPlaceDialog,
+            _showPlaceSearch,
         icon:
             const Icon(
-          Icons.add,
+          Icons.search,
         ),
         label:
             const Text(
-          '장소 추가',
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // 빈 일정
-  // ============================================================
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding:
-            const EdgeInsets.all(30),
-        child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.route_outlined,
-              size: 64,
-              color:
-                  Colors.grey.shade400,
-            ),
-
-            const SizedBox(
-              height: 20,
-            ),
-
-            const Text(
-              '아직 일정이 없어요.',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight:
-                    FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(
-              height: 8,
-            ),
-
-            Text(
-              '추천 관광지를 추가하거나\n'
-              '직접 장소를 추가해보세요.',
-              textAlign:
-                  TextAlign.center,
-              style: TextStyle(
-                color:
-                    Colors.grey.shade600,
-              ),
-            ),
-
-            const SizedBox(
-              height: 24,
-            ),
-
-            FilledButton.icon(
-              onPressed:
-                  _showAddPlaceDialog,
-              icon:
-                  const Icon(
-                Icons.add,
-              ),
-              label:
-                  const Text(
-                '장소 추가',
-              ),
-            ),
-          ],
+          '장소 검색',
         ),
       ),
     );
@@ -1051,7 +2374,7 @@ class _ItineraryScreenState extends State<ItineraryScreen> {
 }
 
 // ============================================================
-// 작은 정보 Chip
+// Info Chip
 // ============================================================
 
 class _InfoChip
@@ -1070,8 +2393,9 @@ class _InfoChip
   ) {
     return Container(
       padding:
-          const EdgeInsets.symmetric(
-        horizontal: 10,
+          const EdgeInsets
+              .symmetric(
+        horizontal: 9,
         vertical: 6,
       ),
       decoration:
@@ -1079,29 +2403,35 @@ class _InfoChip
         color:
             Colors.grey.shade100,
         borderRadius:
-            BorderRadius.circular(10),
+            BorderRadius.circular(
+          9,
+        ),
       ),
-      child: Row(
+      child:
+          Row(
         mainAxisSize:
-            MainAxisSize.min,
+            MainAxisSize
+                .min,
         children: [
           Icon(
             icon,
-            size: 14,
-            color:
-                Colors.grey.shade700,
+            size: 13,
+            color: Colors
+                .grey.shade700,
           ),
-
           const SizedBox(
             width: 4,
           ),
-
           Text(
             text,
-            style: TextStyle(
-              fontSize: 12,
-              color:
-                  Colors.grey.shade700,
+            style:
+                TextStyle(
+              fontSize: 11,
+              color: Colors
+                  .grey.shade700,
+              fontWeight:
+                  FontWeight
+                      .w500,
             ),
           ),
         ],
@@ -1111,7 +2441,7 @@ class _InfoChip
 }
 
 // ============================================================
-// 일정 요약 Item
+// Summary Item
 // ============================================================
 
 class _SummaryItem
@@ -1132,24 +2462,28 @@ class _SummaryItem
       children: [
         Text(
           title,
-          style: TextStyle(
-            fontSize: 12,
-            color:
-                Colors.grey.shade600,
+          style:
+              TextStyle(
+            fontSize: 10,
+            color: Colors
+                .grey.shade600,
           ),
         ),
-
         const SizedBox(
           height: 5,
         ),
-
         Text(
           value,
+          maxLines: 1,
+          overflow:
+              TextOverflow
+                  .ellipsis,
           style:
               const TextStyle(
-            fontSize: 15,
+            fontSize: 13,
             fontWeight:
-                FontWeight.bold,
+                FontWeight
+                    .bold,
           ),
         ),
       ],

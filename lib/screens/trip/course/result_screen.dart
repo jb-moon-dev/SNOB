@@ -46,9 +46,11 @@ class _CourseResultScreenState
     super.initState();
 
     // 기본 여행 일정 생성
+    //
+    // 현재 TravelPlan.create()는 dayCount를 받지 않으므로
+    // regionName만 전달한다.
     travelPlan = TravelPlan.create(
       regionName: widget.regionName,
-      dayCount: 1,
     );
 
     // 저장된 일정 불러오기
@@ -182,30 +184,168 @@ class _CourseResultScreenState
   }
 
   // ============================================================
+  // Map → TravelSpot 변환
+  //
+  // TravelSpot.fromMap()에 의존하지 않고
+  // 현재 TravelSpot 모델의 생성자를 직접 사용한다.
+  // ============================================================
+
+  TravelSpot _createTravelSpot(
+    SnobCongestionResult result,
+  ) {
+    final spot = result.spot;
+
+    final name =
+        spot['hubTatsNm']?.toString() ?? '이름 없음';
+
+    final category =
+        spot['hubCtgryMclsNm']?.toString();
+
+    final address =
+        spot['signguNm']?.toString();
+
+    // ------------------------------------------------------------
+    // 좌표 처리
+    //
+    // 데이터에 따라 lat/lng, latitude/longitude,
+    // x/y 등의 이름이 다를 수 있으므로 여러 형태 지원
+    // ------------------------------------------------------------
+
+    double? latitude = _toDouble(
+      spot['latitude'] ??
+          spot['lat'] ??
+          spot['y'],
+    );
+
+    double? longitude = _toDouble(
+      spot['longitude'] ??
+          spot['lng'] ??
+          spot['lon'] ??
+          spot['x'],
+    );
+
+    // ------------------------------------------------------------
+    // contentId
+    // ------------------------------------------------------------
+
+    final contentId =
+        spot['contentId']?.toString();
+
+    // ------------------------------------------------------------
+    // Kakao 관련 정보
+    // ------------------------------------------------------------
+
+    final kakaoPlaceId =
+        spot['kakaoPlaceId']?.toString();
+
+    final kakaoPlaceUrl =
+        spot['kakaoPlaceUrl']?.toString();
+
+    return TravelSpot(
+      name: name,
+      category: category,
+      address: address,
+      latitude: latitude,
+      longitude: longitude,
+      congestion: result.averageCongestion,
+      snobScore: result.snobScore,
+      contentId: contentId,
+      kakaoPlaceId: kakaoPlaceId,
+      kakaoPlaceUrl: kakaoPlaceUrl,
+      startMinute: null,
+      durationMinutes: 60,
+      travelMinutesFromPrevious: 0,
+    );
+  }
+
+  // ============================================================
+  // 숫자 변환
+  // ============================================================
+
+  double? _toDouble(dynamic value) {
+    if (value == null) return null;
+
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(
+      value.toString(),
+    );
+  }
+
+  // ============================================================
+  // 특정 Day 찾기
+  // ============================================================
+
+  TravelDay? _findDay(int dayNumber) {
+    for (final day in travelPlan.days) {
+      if (day.day == dayNumber) {
+        return day;
+      }
+    }
+
+    return null;
+  }
+
+  // ============================================================
   // 관광지를 일정에 추가
   // ============================================================
 
   Future<void> _addToPlan(
     SnobCongestionResult result,
-    int day,
+    int dayNumber,
   ) async {
     if (isSaving) return;
 
-    final spot = TravelSpot.fromMap(
-      spot: result.spot,
-      congestion: result.averageCongestion,
-      snobScore: result.snobScore,
+    final day = _findDay(dayNumber);
+
+    if (day == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '해당 여행 일정을 찾을 수 없습니다.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final spot = _createTravelSpot(result);
+
+    // ------------------------------------------------------------
+    // 중복 체크
+    // ------------------------------------------------------------
+
+    final alreadyExists = day.spots.any(
+      (existingSpot) =>
+          existingSpot.name == spot.name,
     );
 
-    // 해당 날짜에 추가
-    travelPlan.addSpot(
-      day: day,
-      spot: spot,
-    );
+    if (alreadyExists) {
+      Navigator.pop(context);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${spot.name}은(는) 이미 Day $dayNumber에 추가되어 있어요.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    // ------------------------------------------------------------
+    // 일정에 직접 추가
+    // ------------------------------------------------------------
 
     setState(() {
       isSaving = true;
     });
+
+    day.spots.add(spot);
+    travelPlan.updatedAt = DateTime.now();
 
     try {
       await TravelPlanStorage.saveTravelPlan(
@@ -223,12 +363,15 @@ class _CourseResultScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${spot.name}이(가) Day $day 일정에 추가됐어요.',
+            '${spot.name}이(가) Day $dayNumber 일정에 추가됐어요.',
           ),
           duration: const Duration(seconds: 1),
         ),
       );
     } catch (e) {
+      // 저장 실패 시 방금 추가한 관광지를 되돌린다.
+      day.spots.remove(spot);
+
       if (!mounted) return;
 
       setState(() {
@@ -343,12 +486,14 @@ class _CourseResultScreenState
                 ),
                 decoration: const BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.vertical(
+                  borderRadius:
+                      BorderRadius.vertical(
                     top: Radius.circular(24),
                   ),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
+                  padding:
+                      const EdgeInsets.fromLTRB(
                     20,
                     20,
                     20,
@@ -371,7 +516,8 @@ class _CourseResultScreenState
                               children: [
                                 Text(
                                   travelPlan.regionName,
-                                  style: const TextStyle(
+                                  style:
+                                      const TextStyle(
                                     fontSize: 22,
                                     fontWeight:
                                         FontWeight.bold,
@@ -380,17 +526,19 @@ class _CourseResultScreenState
                                 const SizedBox(height: 4),
                                 Text(
                                   '${travelPlan.totalSpotCount}곳의 관광지가 추가됨',
-                                  style: const TextStyle(
+                                  style:
+                                      const TextStyle(
                                     color: Colors.grey,
                                   ),
                                 ),
                               ],
                             ),
                           ),
-
                           IconButton(
                             onPressed: () {
-                              Navigator.pop(context);
+                              Navigator.pop(
+                                context,
+                              );
                             },
                             icon: const Icon(
                               Icons.close,
@@ -468,7 +616,8 @@ class _CourseResultScreenState
       ),
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius:
+            BorderRadius.circular(16),
         border: Border.all(
           color: Colors.grey.shade200,
         ),
@@ -486,7 +635,8 @@ class _CourseResultScreenState
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(
+                  padding:
+                      const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 7,
                   ),
@@ -499,7 +649,8 @@ class _CourseResultScreenState
                     'DAY ${day.day}',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                       fontSize: 13,
                     ),
                   ),
@@ -523,7 +674,8 @@ class _CourseResultScreenState
 
             if (day.spots.isEmpty)
               const Padding(
-                padding: EdgeInsets.symmetric(
+                padding:
+                    EdgeInsets.symmetric(
                   vertical: 12,
                 ),
                 child: Text(
@@ -539,7 +691,10 @@ class _CourseResultScreenState
             // ------------------------------------------------
 
             else
-              ...day.spots.asMap().entries.map(
+              ...day.spots
+                  .asMap()
+                  .entries
+                  .map(
                 (entry) {
                   final index = entry.key;
                   final spot = entry.value;
@@ -552,7 +707,8 @@ class _CourseResultScreenState
                       radius: 17,
                       child: Text(
                         '${index + 1}',
-                        style: const TextStyle(
+                        style:
+                            const TextStyle(
                           fontSize: 13,
                         ),
                       ),
@@ -560,7 +716,8 @@ class _CourseResultScreenState
 
                     title: Text(
                       spot.name,
-                      style: const TextStyle(
+                      style:
+                          const TextStyle(
                         fontWeight:
                             FontWeight.w600,
                       ),
@@ -578,10 +735,18 @@ class _CourseResultScreenState
                         Icons.delete_outline,
                       ),
                       onPressed: () async {
-                        travelPlan.removeSpot(
-                          day: day.day,
-                          spotName: spot.name,
+                        // ------------------------------------------------
+                        // 직접 삭제
+                        // ------------------------------------------------
+
+                        day.spots.removeWhere(
+                          (item) =>
+                              item.name ==
+                              spot.name,
                         );
+
+                        travelPlan.updatedAt =
+                            DateTime.now();
 
                         await TravelPlanStorage
                             .saveTravelPlan(
@@ -591,7 +756,6 @@ class _CourseResultScreenState
                         if (!mounted) return;
 
                         setState(() {});
-
                         setModalState(() {});
                       },
                     ),
@@ -613,17 +777,21 @@ class _CourseResultScreenState
   ) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
+      shape:
+          const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(
           top: Radius.circular(24),
         ),
       ),
       builder: (context) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding:
+                const EdgeInsets.all(20),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize:
+                  MainAxisSize.min,
               crossAxisAlignment:
                   CrossAxisAlignment.start,
               children: [
@@ -631,7 +799,8 @@ class _CourseResultScreenState
                   '어느 날에 추가할까요?',
                   style: TextStyle(
                     fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                    fontWeight:
+                        FontWeight.bold,
                   ),
                 ),
 
@@ -641,7 +810,8 @@ class _CourseResultScreenState
                   result.spot['hubTatsNm']
                           ?.toString() ??
                       '관광지',
-                  style: const TextStyle(
+                  style:
+                      const TextStyle(
                     color: Colors.grey,
                   ),
                 ),
@@ -651,7 +821,8 @@ class _CourseResultScreenState
                 ...travelPlan.days.map(
                   (day) {
                     return ListTile(
-                      leading: CircleAvatar(
+                      leading:
+                          CircleAvatar(
                         child: Text(
                           '${day.day}',
                         ),
@@ -665,16 +836,19 @@ class _CourseResultScreenState
                         '${day.spots.length}곳',
                       ),
 
-                      trailing: const Icon(
+                      trailing:
+                          const Icon(
                         Icons.chevron_right,
                       ),
 
-                      onTap: () {
-                        _addToPlan(
-                          result,
-                          day.day,
-                        );
-                      },
+                      onTap: isSaving
+                          ? null
+                          : () {
+                              _addToPlan(
+                                result,
+                                day.day,
+                              );
+                            },
                     );
                   },
                 ),
@@ -682,22 +856,29 @@ class _CourseResultScreenState
                 const SizedBox(height: 8),
 
                 OutlinedButton.icon(
-                  onPressed: () async {
-                    Navigator.pop(context);
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          Navigator.pop(
+                            context,
+                          );
 
-                    await _addDay();
+                          await _addDay();
 
-                    if (!mounted) return;
+                          if (!mounted) return;
 
-                    _showDaySelector(result);
-                  },
+                          _showDaySelector(
+                            result,
+                          );
+                        },
                   icon: const Icon(
                     Icons.add,
                   ),
                   label: const Text(
                     '새로운 Day 추가',
                   ),
-                  style: OutlinedButton.styleFrom(
+                  style:
+                      OutlinedButton.styleFrom(
                     minimumSize:
                         const Size(
                       double.infinity,
@@ -782,7 +963,8 @@ class _CourseResultScreenState
     if (errorMessage != null) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding:
+              const EdgeInsets.all(20),
           child: Column(
             mainAxisAlignment:
                 MainAxisAlignment.center,
@@ -797,9 +979,11 @@ class _CourseResultScreenState
 
               const Text(
                 '코스 추천 중 오류가 발생했습니다.',
-                textAlign: TextAlign.center,
+                textAlign:
+                    TextAlign.center,
                 style: TextStyle(
-                  fontWeight: FontWeight.bold,
+                  fontWeight:
+                      FontWeight.bold,
                 ),
               ),
 
@@ -807,8 +991,10 @@ class _CourseResultScreenState
 
               Text(
                 errorMessage!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
+                textAlign:
+                    TextAlign.center,
+                style:
+                    const TextStyle(
                   color: Colors.grey,
                 ),
               ),
@@ -826,7 +1012,8 @@ class _CourseResultScreenState
       return const Center(
         child: Text(
           '혼잡도 데이터를 조회할 수 있는\n관광지가 없습니다.',
-          textAlign: TextAlign.center,
+          textAlign:
+              TextAlign.center,
         ),
       );
     }
@@ -844,7 +1031,8 @@ class _CourseResultScreenState
         // ========================================================
 
         Padding(
-          padding: const EdgeInsets.fromLTRB(
+          padding:
+              const EdgeInsets.fromLTRB(
             20,
             20,
             20,
@@ -868,7 +1056,8 @@ class _CourseResultScreenState
                 widget.regionName,
                 style: const TextStyle(
                   fontSize: 27,
-                  fontWeight: FontWeight.bold,
+                  fontWeight:
+                      FontWeight.bold,
                 ),
               ),
 
@@ -895,12 +1084,16 @@ class _CourseResultScreenState
 
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding:
+                const EdgeInsets.all(16),
             itemCount: results.length,
-            itemBuilder: (context, index) {
-              final result = results[index];
+            itemBuilder:
+                (context, index) {
+              final result =
+                  results[index];
 
-              final spot = result.spot;
+              final spot =
+                  result.spot;
 
               final spotName =
                   spot['hubTatsNm']
@@ -921,28 +1114,38 @@ class _CourseResultScreenState
                   _isAdded(spotName);
 
               final addedDay =
-                  _getAddedDay(spotName);
+                  _getAddedDay(
+                spotName,
+              );
 
               return Card(
                 elevation: 0,
-                margin: const EdgeInsets.only(
+                margin:
+                    const EdgeInsets.only(
                   bottom: 12,
                 ),
-                shape: RoundedRectangleBorder(
+                shape:
+                    RoundedRectangleBorder(
                   borderRadius:
-                      BorderRadius.circular(16),
+                      BorderRadius.circular(
+                    16,
+                  ),
                   side: BorderSide(
-                    color: Colors.grey.shade200,
+                    color:
+                        Colors.grey.shade200,
                   ),
                 ),
                 child: Padding(
                   padding:
-                      const EdgeInsets.all(16),
+                      const EdgeInsets.all(
+                    16,
+                  ),
                   child: Column(
                     children: [
                       Row(
                         crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                            CrossAxisAlignment
+                                .start,
                         children: [
                           // ------------------------------------------------
                           // 순위
@@ -955,7 +1158,8 @@ class _CourseResultScreenState
                               style:
                                   const TextStyle(
                                 fontWeight:
-                                    FontWeight.bold,
+                                    FontWeight
+                                        .bold,
                               ),
                             ),
                           ),
@@ -997,7 +1201,8 @@ class _CourseResultScreenState
                                         const TextStyle(
                                       color:
                                           Colors.grey,
-                                      fontSize: 13,
+                                      fontSize:
+                                          13,
                                     ),
                                   ),
 
@@ -1009,7 +1214,8 @@ class _CourseResultScreenState
                                         const TextStyle(
                                       color:
                                           Colors.grey,
-                                      fontSize: 13,
+                                      fontSize:
+                                          13,
                                     ),
                                   ),
                               ],
@@ -1018,7 +1224,9 @@ class _CourseResultScreenState
                         ],
                       ),
 
-                      const SizedBox(height: 15),
+                      const SizedBox(
+                        height: 15,
+                      ),
 
                       // ====================================================
                       // 점수 영역
@@ -1027,11 +1235,14 @@ class _CourseResultScreenState
                       Row(
                         children: [
                           Expanded(
-                            child: _ScoreBox(
+                            child:
+                                _ScoreBox(
                               title: 'SNOB',
                               value: result
                                   .snobScore
-                                  .toStringAsFixed(1),
+                                  .toStringAsFixed(
+                                1,
+                              ),
                               icon: Icons
                                   .travel_explore,
                             ),
@@ -1042,11 +1253,15 @@ class _CourseResultScreenState
                           ),
 
                           Expanded(
-                            child: _ScoreBox(
-                              title: '30일 평균 혼잡도',
+                            child:
+                                _ScoreBox(
+                              title:
+                                  '30일 평균 혼잡도',
                               value: result
                                   .averageCongestion
-                                  .toStringAsFixed(1),
+                                  .toStringAsFixed(
+                                1,
+                              ),
                               icon: Icons
                                   .people_outline,
                             ),
@@ -1054,22 +1269,28 @@ class _CourseResultScreenState
                         ],
                       ),
 
-                      const SizedBox(height: 12),
+                      const SizedBox(
+                        height: 12,
+                      ),
 
                       // ====================================================
                       // 일정 추가 버튼
                       // ====================================================
 
                       SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: isAdded
-                              ? null
-                              : () {
-                                  _showDaySelector(
-                                    result,
-                                  );
-                                },
+                        width:
+                            double.infinity,
+                        child:
+                            FilledButton.icon(
+                          onPressed:
+                              isAdded ||
+                                      isSaving
+                                  ? null
+                                  : () {
+                                      _showDaySelector(
+                                        result,
+                                      );
+                                    },
                           icon: Icon(
                             isAdded
                                 ? Icons.check
@@ -1112,7 +1333,8 @@ class _ScoreBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
+      padding:
+          const EdgeInsets.symmetric(
         horizontal: 12,
         vertical: 12,
       ),
@@ -1152,7 +1374,8 @@ class _ScoreBox extends StatelessWidget {
 
                 Text(
                   value,
-                  style: const TextStyle(
+                  style:
+                      const TextStyle(
                     fontSize: 17,
                     fontWeight:
                         FontWeight.bold,
