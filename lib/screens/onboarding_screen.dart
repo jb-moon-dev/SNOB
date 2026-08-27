@@ -21,7 +21,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     print("카카오 버튼 클릭");
 
-    final user = await KakaoAuthService.login();
+    final user = await KakaoAuthService.login(context);
 
     if (!mounted) return;
 

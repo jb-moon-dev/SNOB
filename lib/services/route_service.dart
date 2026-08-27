@@ -135,7 +135,7 @@ class RouteService {
   })  : _restApiKey =
             restApiKey ??
                 const String.fromEnvironment(
-                  'KAKAO_MOBILITY_REST_KEY',
+                  '3bc005218347f7b0f3c023554bbfe13e',
                 ),
         _client = client ?? http.Client();
 
@@ -150,7 +150,7 @@ class RouteService {
   /// ============================================================
 
   static const String hardcodedRestApiKey =
-      'YOUR_KAKAO_REST_KEY';
+      '3bc005218347f7b0f3c023554bbfe13e';
 
   final String _restApiKey;
 
@@ -177,7 +177,7 @@ class RouteService {
 
   void _validateKey() {
     if (apiKey.trim().isEmpty ||
-        apiKey == 'YOUR_KAKAO_REST_KEY') {
+        apiKey == '3bc005218347f7b0f3c023554bbfe13e') {
       throw Exception(
         'Kakao REST API Key가 설정되지 않았습니다.',
       );
