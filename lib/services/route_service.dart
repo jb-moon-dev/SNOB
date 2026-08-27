@@ -4,6 +4,61 @@ import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 
 /// ============================================================
+/// 이동수단
+/// ============================================================
+
+enum TransportMode {
+  walking,
+  car,
+  publicTransit,
+}
+
+/// ============================================================
+/// 이동수단 이름
+/// ============================================================
+
+extension TransportModeExtension on TransportMode {
+  String get label {
+    switch (this) {
+      case TransportMode.walking:
+        return '도보';
+
+      case TransportMode.car:
+        return '자동차';
+
+      case TransportMode.publicTransit:
+        return '대중교통';
+    }
+  }
+
+  String get shortLabel {
+    switch (this) {
+      case TransportMode.walking:
+        return '도보';
+
+      case TransportMode.car:
+        return '차';
+
+      case TransportMode.publicTransit:
+        return '대중교통';
+    }
+  }
+
+  String get iconName {
+    switch (this) {
+      case TransportMode.walking:
+        return 'walking';
+
+      case TransportMode.car:
+        return 'car';
+
+      case TransportMode.publicTransit:
+        return 'transit';
+    }
+  }
+}
+
+/// ============================================================
 /// 경로 결과
 /// ============================================================
 
@@ -13,18 +68,64 @@ class RouteResult {
 
   final int distanceMeters;
 
+  /// 실제 API에서 가져왔는지 여부
   final bool fromApi;
+
+  /// 어떤 이동수단으로 계산했는지
+  final TransportMode mode;
 
   const RouteResult({
     required this.durationMinutes,
     required this.durationSeconds,
     required this.distanceMeters,
     required this.fromApi,
+    required this.mode,
   });
+
+  String get formattedDistance {
+    if (distanceMeters < 1000) {
+      return '${distanceMeters}m';
+    }
+
+    final km = distanceMeters / 1000;
+
+    return '${km.toStringAsFixed(1)}km';
+  }
+
+  String get formattedDuration {
+    if (durationMinutes < 60) {
+      return '$durationMinutes분';
+    }
+
+    final hours = durationMinutes ~/ 60;
+    final minutes = durationMinutes % 60;
+
+    if (minutes == 0) {
+      return '$hours시간';
+    }
+
+    return '$hours시간 $minutes분';
+  }
 }
 
 /// ============================================================
-/// Kakao 실제 도보 경로 Service
+/// Kakao Route Service
+/// ============================================================
+///
+/// 역할
+/// ------------------------------------------------------------
+/// 1. 자동차 실제 경로
+/// 2. 도보 예상 경로
+/// 3. 대중교통 예상 경로
+/// 4. 거리 계산
+/// 5. API 실패 시 fallback
+///
+/// 현재 Kakao Mobility 일반 REST API에서
+/// 자동차 길찾기는 공식 제공된다.
+///
+/// 도보 / 대중교통은 제휴 API 영역이므로
+/// 일반 REST 키만 사용하는 현재 환경에서는
+/// 좌표 기반 예상시간으로 fallback 한다.
 /// ============================================================
 
 class RouteService {
@@ -34,29 +135,103 @@ class RouteService {
   })  : _restApiKey =
             restApiKey ??
                 const String.fromEnvironment(
-                  'KAKAO_REST_API_KEY',
+                  'KAKAO_MOBILITY_REST_KEY',
                 ),
         _client = client ?? http.Client();
 
+  /// ============================================================
+  /// API KEY
+  /// ============================================================
+  ///
+  /// 네가 코드에 직접 넣고 싶다면
+  /// 아래 값을 네 Kakao REST API Key로 바꾸면 된다.
+  ///
+  /// 현재는 보안을 위해 실제 키를 다시 노출하지 않는다.
+  /// ============================================================
+
+  static const String hardcodedRestApiKey =
+      'YOUR_KAKAO_REST_KEY';
+
   final String _restApiKey;
+
   final http.Client _client;
 
-  static const String _baseUrl =
-      'https://dapi.kakao.com';
+  static const String _routeBaseUrl =
+      'https://apis-navi.kakaomobility.com';
+
+  /// ============================================================
+  /// 실제 사용할 API Key
+  /// ============================================================
+
+  String get apiKey {
+    if (_restApiKey.trim().isNotEmpty) {
+      return _restApiKey;
+    }
+
+    return hardcodedRestApiKey;
+  }
+
+  /// ============================================================
+  /// API Key 확인
+  /// ============================================================
 
   void _validateKey() {
-    if (_restApiKey.trim().isEmpty) {
+    if (apiKey.trim().isEmpty ||
+        apiKey == 'YOUR_KAKAO_REST_KEY') {
       throw Exception(
         'Kakao REST API Key가 설정되지 않았습니다.',
       );
     }
   }
 
-  /// ----------------------------------------------------------
-  /// 실제 도보 경로 조회
-  /// ----------------------------------------------------------
+  /// ============================================================
+  /// 이동시간 계산
+  /// ============================================================
 
-  Future<RouteResult> getWalkingRoute({
+  Future<RouteResult> getRoute({
+    required double startLatitude,
+    required double startLongitude,
+    required double endLatitude,
+    required double endLongitude,
+    TransportMode mode = TransportMode.walking,
+  }) async {
+    switch (mode) {
+      case TransportMode.walking:
+        return getWalkingRoute(
+          startLatitude: startLatitude,
+          startLongitude: startLongitude,
+          endLatitude: endLatitude,
+          endLongitude: endLongitude,
+        );
+
+      case TransportMode.car:
+        return getDrivingRoute(
+          startLatitude: startLatitude,
+          startLongitude: startLongitude,
+          endLatitude: endLatitude,
+          endLongitude: endLongitude,
+        );
+
+      case TransportMode.publicTransit:
+        return getPublicTransitRoute(
+          startLatitude: startLatitude,
+          startLongitude: startLongitude,
+          endLatitude: endLatitude,
+          endLongitude: endLongitude,
+        );
+    }
+  }
+
+  /// ============================================================
+  /// 자동차 실제 경로
+  /// ============================================================
+  ///
+  /// Kakao Mobility 공식 자동차 길찾기 API
+  ///
+  /// https://apis-navi.kakaomobility.com/v1/directions
+  /// ============================================================
+
+  Future<RouteResult> getDrivingRoute({
     required double startLatitude,
     required double startLongitude,
     required double endLatitude,
@@ -65,18 +240,22 @@ class RouteService {
     _validateKey();
 
     final uri = Uri.parse(
-      '$_baseUrl/v2/routing/walk',
+      '$_routeBaseUrl/v1/directions',
     ).replace(
       queryParameters: {
-        'start_x':
-            startLongitude.toString(),
-        'start_y':
-            startLatitude.toString(),
-        'end_x':
-            endLongitude.toString(),
-        'end_y':
-            endLatitude.toString(),
-        'route_mode': 'BROAD_FIRST',
+        'origin':
+            '$startLongitude,$startLatitude',
+
+        'destination':
+            '$endLongitude,$endLatitude',
+
+        'priority': 'RECOMMEND',
+
+        'summary': 'true',
+
+        'alternatives': 'false',
+
+        'road_details': 'false',
       },
     );
 
@@ -85,7 +264,9 @@ class RouteService {
         uri,
         headers: {
           'Authorization':
-              'KakaoAK $_restApiKey',
+              'KakaoAK $apiKey',
+          'Content-Type':
+              'application/json',
         },
       );
 
@@ -95,6 +276,7 @@ class RouteService {
           startLongitude,
           endLatitude,
           endLongitude,
+          TransportMode.car,
         );
       }
 
@@ -102,56 +284,56 @@ class RouteService {
           jsonDecode(response.body)
               as Map<String, dynamic>;
 
-      final status =
-          data['status']?.toString();
+      final routes =
+          data['routes'] as List?;
 
-      if (status != 'OK') {
+      if (routes == null ||
+          routes.isEmpty) {
         return _fallback(
           startLatitude,
           startLongitude,
           endLatitude,
           endLongitude,
+          TransportMode.car,
         );
       }
 
-      final route =
-          data['route']
+      final firstRoute =
+          routes.first as Map<String, dynamic>;
+
+      final result =
+          firstRoute['summary']
               as Map<String, dynamic>?;
 
-      final properties =
-          route?['properties']
-              as Map<String, dynamic>?;
+      final distance =
+          (result?['distance'] as num?)
+              ?.toInt();
 
-      final totalDistance =
-          (properties?['totalDistance']
-                      as num?)
-                  ?.toInt();
+      final duration =
+          (result?['duration'] as num?)
+              ?.toInt();
 
-      final totalTime =
-          (properties?['totalTime']
-                      as num?)
-                  ?.toInt();
-
-      if (totalDistance == null ||
-          totalTime == null) {
+      if (distance == null ||
+          duration == null) {
         return _fallback(
           startLatitude,
           startLongitude,
           endLatitude,
           endLongitude,
+          TransportMode.car,
         );
       }
 
       return RouteResult(
-        durationSeconds: totalTime,
+        durationSeconds: duration,
         durationMinutes:
             math.max(
-              1,
-              (totalTime / 60).ceil(),
-            ),
-        distanceMeters:
-            totalDistance,
+          1,
+          (duration / 60).ceil(),
+        ),
+        distanceMeters: distance,
         fromApi: true,
+        mode: TransportMode.car,
       );
     } catch (_) {
       return _fallback(
@@ -159,24 +341,142 @@ class RouteService {
         startLongitude,
         endLatitude,
         endLongitude,
+        TransportMode.car,
       );
     }
   }
 
-  /// ----------------------------------------------------------
+  /// ============================================================
+  /// 도보 경로
+  /// ============================================================
+  ///
+  /// 현재 일반 REST 키 환경에서는
+  /// Kakao Mobility 제휴 도보 API를 사용할 수 없으므로
+  /// 좌표 기반 예상시간을 계산한다.
+  ///
+  /// 제휴 권한을 받으면 이 부분을 실제 API 호출로
+  /// 변경할 수 있다.
+  /// ============================================================
+
+  Future<RouteResult> getWalkingRoute({
+    required double startLatitude,
+    required double startLongitude,
+    required double endLatitude,
+    required double endLongitude,
+  }) async {
+    final distanceMeters =
+        _haversineDistance(
+      startLatitude,
+      startLongitude,
+      endLatitude,
+      endLongitude,
+    );
+
+    /// 평균 도보속도 약 4km/h
+    const walkingSpeed =
+        4000 / 3600;
+
+    final seconds =
+        (distanceMeters /
+                walkingSpeed)
+            .round();
+
+    return RouteResult(
+      durationSeconds: seconds,
+      durationMinutes:
+          math.max(
+        1,
+        (seconds / 60).ceil(),
+      ),
+      distanceMeters:
+          distanceMeters.round(),
+      fromApi: false,
+      mode: TransportMode.walking,
+    );
+  }
+
+  /// ============================================================
+  /// 대중교통 경로
+  /// ============================================================
+  ///
+  /// Kakao Mobility 대중교통 통합 길찾기는
+  /// 현재 제휴용 API이다.
+  ///
+  /// 따라서 현재 앱에서는 좌표 기반 예상시간을 사용한다.
+  ///
+  /// 실제 서비스에서는
+  /// 도보 + 버스 + 지하철 + 환승시간까지 계산하는
+  /// Kakao Mobility 제휴 API로 교체할 수 있다.
+  /// ============================================================
+
+  Future<RouteResult> getPublicTransitRoute({
+    required double startLatitude,
+    required double startLongitude,
+    required double endLatitude,
+    required double endLongitude,
+  }) async {
+    final distanceMeters =
+        _haversineDistance(
+      startLatitude,
+      startLongitude,
+      endLatitude,
+      endLongitude,
+    );
+
+    /// 대중교통은
+    /// 이동거리 + 정류장 접근 + 대기 + 환승을 고려해
+    /// 단순 직선거리보다 여유 있게 계산한다.
+    ///
+    /// 현재는 예상치이며 실제 대중교통 API 결과가 아니다.
+    const averageSpeedKmh = 22.0;
+
+    final roadDistance =
+        distanceMeters * 1.35;
+
+    final seconds =
+        (roadDistance /
+                (averageSpeedKmh *
+                    1000 /
+                    3600))
+            .round();
+
+    /// 최소 5분
+    final minimumSeconds =
+        5 * 60;
+
+    final finalSeconds =
+        math.max(
+      seconds,
+      minimumSeconds,
+    );
+
+    return RouteResult(
+      durationSeconds:
+          finalSeconds,
+      durationMinutes:
+          math.max(
+        1,
+        (finalSeconds / 60)
+            .ceil(),
+      ),
+      distanceMeters:
+          distanceMeters.round(),
+      fromApi: false,
+      mode:
+          TransportMode.publicTransit,
+    );
+  }
+
+  /// ============================================================
   /// fallback
-  ///
-  /// API가 실패했을 때만 사용.
-  ///
-  /// 실제 도로 이동시간이 아니라
-  /// 좌표 기반 직선거리 예상치.
-  /// ----------------------------------------------------------
+  /// ============================================================
 
   RouteResult _fallback(
     double startLatitude,
     double startLongitude,
     double endLatitude,
     double endLongitude,
+    TransportMode mode,
   ) {
     final distanceMeters =
         _haversineDistance(
@@ -186,31 +486,47 @@ class RouteService {
       endLongitude,
     );
 
-    // 평균 도보속도 약 4.5 km/h
-    const walkingMetersPerSecond =
-        4500 / 3600;
+    double speedKmh;
+
+    switch (mode) {
+      case TransportMode.walking:
+        speedKmh = 4.0;
+        break;
+
+      case TransportMode.car:
+        speedKmh = 30.0;
+        break;
+
+      case TransportMode.publicTransit:
+        speedKmh = 22.0;
+        break;
+    }
+
+    final metersPerSecond =
+        speedKmh * 1000 / 3600;
 
     final seconds =
         (distanceMeters /
-                walkingMetersPerSecond)
+                metersPerSecond)
             .round();
 
     return RouteResult(
       durationSeconds: seconds,
       durationMinutes:
           math.max(
-            1,
-            (seconds / 60).ceil(),
-          ),
+        1,
+        (seconds / 60).ceil(),
+      ),
       distanceMeters:
           distanceMeters.round(),
       fromApi: false,
+      mode: mode,
     );
   }
 
-  /// ----------------------------------------------------------
+  /// ============================================================
   /// Haversine 거리
-  /// ----------------------------------------------------------
+  /// ============================================================
 
   double _haversineDistance(
     double lat1,
@@ -218,22 +534,31 @@ class RouteService {
     double lat2,
     double lon2,
   ) {
-    const earthRadius = 6371000.0;
+    const earthRadius =
+        6371000.0;
 
     final dLat =
-        _degreesToRadians(lat2 - lat1);
+        _degreesToRadians(
+      lat2 - lat1,
+    );
 
     final dLon =
-        _degreesToRadians(lon2 - lon1);
+        _degreesToRadians(
+      lon2 - lon1,
+    );
 
     final a =
         math.sin(dLat / 2) *
                 math.sin(dLat / 2) +
             math.cos(
-                  _degreesToRadians(lat1),
+                  _degreesToRadians(
+                    lat1,
+                  ),
                 ) *
                 math.cos(
-                  _degreesToRadians(lat2),
+                  _degreesToRadians(
+                    lat2,
+                  ),
                 ) *
                 math.sin(dLon / 2) *
                 math.sin(dLon / 2);
@@ -255,6 +580,10 @@ class RouteService {
         math.pi /
         180;
   }
+
+  /// ============================================================
+  /// dispose
+  /// ============================================================
 
   void dispose() {
     _client.close();
