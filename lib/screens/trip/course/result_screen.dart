@@ -1252,20 +1252,7 @@ class _CourseResultScreenState
                             width: 10,
                           ),
 
-                          Expanded(
-                            child:
-                                _ScoreBox(
-                              title:
-                                  '30일 평균 혼잡도',
-                              value: result
-                                  .averageCongestion
-                                  .toStringAsFixed(
-                                1,
-                              ),
-                              icon: Icons
-                                  .people_outline,
-                            ),
-                          ),
+                          
                         ],
                       ),
 

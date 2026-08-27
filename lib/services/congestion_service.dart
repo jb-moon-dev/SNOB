@@ -11,25 +11,22 @@ class CongestionService {
   /// 관광지 집중률 조회
   ///
   /// 조회 기준:
-  /// - 조회일 기준 한 달 전
   /// - areaCd
   /// - signguCd
+  ///
+  /// baseYm은 요청 파라미터로 사용하지 않음.
   ///
   /// 반환:
   /// [
   ///   {
   ///     'hubCtgryMclsNm': ...,
   ///     'hubRank': ...,
-  ///     'baseYm': ...,
-  ///     'mapX': ...,
-  ///     'mapY': ...,
-  ///     'areaCd': ...,
-  ///     'areaNm': ...,
-  ///     'signguCd': ...,
-  ///     'signguNm': ...,
+  ///     'baseYmd': ...,
+  ///     'cnctrRate': ...,
   ///     'hubTatsCd': ...,
   ///     'hubTatsNm': ...,
-  ///     'hubCtgryLclsNm': ...
+  ///     'areaCd': ...,
+  ///     'signguCd': ...
   ///   }
   /// ]
   Future<List<Map<String, dynamic>>> getCongestion({
@@ -38,20 +35,6 @@ class CongestionService {
     int pageNo = 1,
     int numOfRows = 100,
   }) async {
-
-    // ============================================================
-    // 조회일 기준 한 달 전
-    // ============================================================
-
-    final now = DateTime.now();
-
-    final baseDate = DateTime(
-      now.year,
-      now.month - 1,
-    );
-
-    final baseYm =
-        '${baseDate.year}${baseDate.month.toString().padLeft(2, '0')}';
 
     // ============================================================
     // API 요청
@@ -63,7 +46,6 @@ class CongestionService {
       'numOfRows': numOfRows.toString(),
       'MobileOS': 'ETC',
       'MobileApp': 'SNOB',
-      'baseYm': baseYm,
       'areaCd': areaCd,
       'signguCd': signguCd,
       '_type': 'json',
@@ -78,11 +60,14 @@ class CongestionService {
     print('');
     print('========================================');
     print('CONGESTION API');
-    print('기준월: $baseYm');
     print('지역코드: $areaCd');
     print('시군구코드: $signguCd');
     print(uri);
     print('========================================');
+
+    // ============================================================
+    // API 호출
+    // ============================================================
 
     final response = await http.get(uri);
 
@@ -105,7 +90,19 @@ class CongestionService {
     // JSON 파싱
     // ============================================================
 
-    final decoded = jsonDecode(response.body);
+    dynamic decoded;
+
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (e) {
+      throw Exception(
+        '관광지 집중률 API JSON 파싱 실패: $e',
+      );
+    }
+
+    // ============================================================
+    // response 확인
+    // ============================================================
 
     final responseData = decoded['response'];
 
@@ -114,12 +111,20 @@ class CongestionService {
       return [];
     }
 
+    // ============================================================
+    // body 확인
+    // ============================================================
+
     final body = responseData['body'];
 
     if (body is! Map) {
       print('body가 Map이 아닙니다.');
       return [];
     }
+
+    // ============================================================
+    // items 확인
+    // ============================================================
 
     final itemsData = body['items'];
 
@@ -139,6 +144,10 @@ class CongestionService {
       print('items가 Map이 아닙니다.');
       return [];
     }
+
+    // ============================================================
+    // item 확인
+    // ============================================================
 
     final itemData = itemsData['item'];
 
@@ -178,6 +187,12 @@ class CongestionService {
 
       return result;
     }
+
+    // ============================================================
+    // 알 수 없는 형식
+    // ============================================================
+
+    print('item의 형식을 확인할 수 없습니다.');
 
     return [];
   }
