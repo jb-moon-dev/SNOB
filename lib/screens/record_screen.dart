@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../services/trip_record_storage.dart';
 
@@ -163,8 +166,7 @@ class _RecordScreenState extends State<RecordScreen> {
     );
 
 
-    // 상세 화면에서 일기 / 사진 등을 수정했을 수 있으므로
-    // 돌아온 뒤 최신 데이터 다시 불러오기
+    // 상세 화면에서 수정된 내용을 다시 불러오기
     await _loadRecords();
   }
 
@@ -227,13 +229,17 @@ class _RecordScreenState extends State<RecordScreen> {
 
                     const Text(
                       '나의 여행을 다시 만나보세요',
+
                       style: TextStyle(
                         fontSize: 25,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
 
-                    const SizedBox(height: 20),
+
+                    const SizedBox(
+                      height: 20,
+                    ),
 
 
                     // ==================================================
@@ -257,8 +263,8 @@ class _RecordScreenState extends State<RecordScreen> {
                         boxShadow: [
 
                           BoxShadow(
-                            color: Colors.black
-                                .withOpacity(0.04),
+                            color:
+                                Colors.black.withOpacity(0.04),
 
                             blurRadius: 12,
 
@@ -286,6 +292,7 @@ class _RecordScreenState extends State<RecordScreen> {
                                     BoxDecoration(
                                   color:
                                       Colors.blue.shade50,
+
                                   shape:
                                       BoxShape.circle,
                                 ),
@@ -294,6 +301,7 @@ class _RecordScreenState extends State<RecordScreen> {
                                     const Center(
                                   child: Text(
                                     '✈️',
+
                                     style:
                                         TextStyle(
                                       fontSize: 24,
@@ -302,12 +310,15 @@ class _RecordScreenState extends State<RecordScreen> {
                                 ),
                               ),
 
+
                               const SizedBox(
                                 width: 14,
                               ),
 
+
                               const Text(
                                 '나의 여행',
+
                                 style:
                                     TextStyle(
                                   fontSize: 19,
@@ -318,12 +329,15 @@ class _RecordScreenState extends State<RecordScreen> {
                             ],
                           ),
 
+
                           const SizedBox(
                             height: 20,
                           ),
 
+
                           Text(
                             '지금까지 ${_records.length}개의 여행을 기록했어요',
+
                             style: TextStyle(
                               fontSize: 15,
                               color:
@@ -331,9 +345,11 @@ class _RecordScreenState extends State<RecordScreen> {
                             ),
                           ),
 
+
                           const SizedBox(
                             height: 8,
                           ),
+
 
                           Text(
                             _records.isNotEmpty
@@ -365,11 +381,14 @@ class _RecordScreenState extends State<RecordScreen> {
 
                     const Text(
                       '여행 기록',
+
                       style: TextStyle(
                         fontSize: 21,
-                        fontWeight: FontWeight.bold,
+                        fontWeight:
+                            FontWeight.bold,
                       ),
                     ),
+
 
                     const SizedBox(
                       height: 12,
@@ -395,18 +414,22 @@ class _RecordScreenState extends State<RecordScreen> {
 
                             const Text(
                               '🗺️',
+
                               style:
                                   TextStyle(
                                 fontSize: 45,
                               ),
                             ),
 
+
                             const SizedBox(
                               height: 15,
                             ),
 
+
                             const Text(
                               '아직 여행 기록이 없어요.',
+
                               style:
                                   TextStyle(
                                 fontSize: 17,
@@ -415,15 +438,19 @@ class _RecordScreenState extends State<RecordScreen> {
                               ),
                             ),
 
+
                             const SizedBox(
                               height: 8,
                             ),
 
+
                             Text(
                               '여행을 완료하면\n'
                               '이곳에 여행 기록이 남아요.',
+
                               textAlign:
                                   TextAlign.center,
+
                               style:
                                   TextStyle(
                                 color:
@@ -449,6 +476,7 @@ class _RecordScreenState extends State<RecordScreen> {
                         final record =
                             entry.value;
 
+
                         return Padding(
                           padding:
                               const EdgeInsets.only(
@@ -459,6 +487,7 @@ class _RecordScreenState extends State<RecordScreen> {
 
                             onTap: () =>
                                 _openRecord(index),
+
 
                             child: Container(
 
@@ -475,34 +504,27 @@ class _RecordScreenState extends State<RecordScreen> {
                                     Colors.white,
 
                                 borderRadius:
-                                    BorderRadius.circular(
-                                  20,
-                                ),
+                                    BorderRadius.circular(20),
 
                                 boxShadow: [
 
                                   BoxShadow(
-                                    color: Colors.black
-                                        .withOpacity(
-                                      0.04,
-                                    ),
+                                    color:
+                                        Colors.black.withOpacity(0.04),
 
                                     blurRadius: 10,
 
                                     offset:
-                                        const Offset(
-                                      0,
-                                      4,
-                                    ),
+                                        const Offset(0, 4),
                                   ),
                                 ],
                               ),
 
+
                               child: Column(
 
                                 crossAxisAlignment:
-                                    CrossAxisAlignment
-                                        .start,
+                                    CrossAxisAlignment.start,
 
                                 children: [
 
@@ -511,7 +533,6 @@ class _RecordScreenState extends State<RecordScreen> {
                                   // --------------------------------
 
                                   Container(
-
                                     height: 150,
 
                                     width:
@@ -521,54 +542,62 @@ class _RecordScreenState extends State<RecordScreen> {
                                         BoxDecoration(
 
                                       color:
-                                          Colors.grey
-                                              .shade200,
+                                          Colors.grey.shade200,
 
                                       borderRadius:
-                                          BorderRadius
-                                              .circular(
-                                        15,
-                                      ),
+                                          BorderRadius.circular(15),
                                     ),
 
                                     child:
-
-                                        record.photoPaths
-                                                .isNotEmpty
+                                        record.photoPaths.isNotEmpty
 
                                             ? ClipRRect(
-
                                                 borderRadius:
-                                                    BorderRadius
-                                                        .circular(
-                                                  15,
-                                                ),
+                                                    BorderRadius.circular(15),
 
                                                 child:
-                                                    Image
-                                                        .file(
-                                                  // 사진 기능 연결 시
-                                                  // 실제 파일 경로 사용
-                                                  // 현재는 placeholder
-                                                  // 로 처리
-                                                  // TODO
-                                                  throw UnimplementedError(),
+                                                    Image.file(
+                                                  File(
+                                                    record.photoPaths.first,
+                                                  ),
+
+                                                  width:
+                                                      double.infinity,
+
+                                                  height:
+                                                      double.infinity,
+
                                                   fit:
                                                       BoxFit.cover,
+
+                                                  errorBuilder:
+                                                      (
+                                                    context,
+                                                    error,
+                                                    stackTrace,
+                                                  ) {
+
+                                                    return const Center(
+                                                      child: Text(
+                                                        '📸 사진을 불러올 수 없어요',
+                                                      ),
+                                                    );
+                                                  },
                                                 ),
                                               )
 
                                             : const Center(
                                                 child: Text(
                                                   '📸 여행 사진',
+
                                                   style:
                                                       TextStyle(
-                                                    fontSize:
-                                                        18,
+                                                    fontSize: 18,
                                                   ),
                                                 ),
                                               ),
                                   ),
+
 
                                   const SizedBox(
                                     height: 15,
@@ -584,34 +613,29 @@ class _RecordScreenState extends State<RecordScreen> {
 
                                       Expanded(
                                         child: Text(
-                                          record
-                                              .regionName,
+                                          record.regionName,
 
                                           style:
                                               const TextStyle(
                                             fontSize: 20,
                                             fontWeight:
-                                                FontWeight
-                                                    .bold,
+                                                FontWeight.bold,
                                           ),
                                         ),
                                       ),
 
+
                                       IconButton(
                                         onPressed: () =>
-                                            _deleteRecord(
-                                          index,
-                                        ),
+                                            _deleteRecord(index),
 
                                         icon:
                                             const Icon(
-                                          Icons
-                                              .delete_outline,
+                                          Icons.delete_outline,
                                         ),
 
                                         color:
-                                            Colors.grey
-                                                .shade600,
+                                            Colors.grey.shade600,
                                       ),
                                     ],
                                   ),
@@ -630,19 +654,19 @@ class _RecordScreenState extends State<RecordScreen> {
                                     children: [
 
                                       Icon(
-                                        Icons
-                                            .calendar_today_outlined,
+                                        Icons.calendar_today_outlined,
 
                                         size: 16,
 
                                         color:
-                                            Colors.grey
-                                                .shade600,
+                                            Colors.grey.shade600,
                                       ),
+
 
                                       const SizedBox(
                                         width: 6,
                                       ),
+
 
                                       Text(
                                         '${_formatDate(record.startDate)}'
@@ -652,8 +676,7 @@ class _RecordScreenState extends State<RecordScreen> {
                                         style:
                                             TextStyle(
                                           color:
-                                              Colors.grey
-                                                  .shade600,
+                                              Colors.grey.shade600,
                                         ),
                                       ),
                                     ],
@@ -673,19 +696,19 @@ class _RecordScreenState extends State<RecordScreen> {
                                     children: [
 
                                       Icon(
-                                        Icons
-                                            .location_on_outlined,
+                                        Icons.location_on_outlined,
 
                                         size: 17,
 
                                         color:
-                                            Colors.grey
-                                                .shade600,
+                                            Colors.grey.shade600,
                                       ),
+
 
                                       const SizedBox(
                                         width: 4,
                                       ),
+
 
                                       Text(
                                         '${record.visitedPlaces.length}곳 방문',
@@ -693,8 +716,7 @@ class _RecordScreenState extends State<RecordScreen> {
                                         style:
                                             TextStyle(
                                           color:
-                                              Colors.grey
-                                                  .shade600,
+                                              Colors.grey.shade600,
                                         ),
                                       ),
                                     ],
@@ -728,7 +750,9 @@ class TravelRecordDetailScreen
     extends StatefulWidget {
 
   final TripRecord record;
+
   final int recordIndex;
+
 
   const TravelRecordDetailScreen({
     super.key,
@@ -750,17 +774,72 @@ class _TravelRecordDetailScreenState
       _diaryController;
 
 
+  // ==============================================================
+  // 사진 추가
+  // ==============================================================
+
+  Future<void> _addPhoto() async {
+
+    final picker =
+        ImagePicker();
+
+
+    final XFile? image =
+        await picker.pickImage(
+      source:
+          ImageSource.gallery,
+
+      imageQuality:
+          85,
+    );
+
+
+    if (image == null) {
+      return;
+    }
+
+
+    if (!mounted) {
+      return;
+    }
+
+
+    setState(() {
+
+      widget.record.photoPaths.add(
+        image.path,
+      );
+    });
+
+
+    // 사진을 추가한 즉시 저장
+    await _saveRecord(
+      showMessage: false,
+    );
+  }
+
+
+  // ==============================================================
+  // 초기화
+  // ==============================================================
+
   @override
   void initState() {
 
     super.initState();
 
+
     _diaryController =
         TextEditingController(
-      text: widget.record.diary,
+      text:
+          widget.record.diary,
     );
   }
 
+
+  // ==============================================================
+  // 종료
+  // ==============================================================
 
   @override
   void dispose() {
@@ -775,10 +854,13 @@ class _TravelRecordDetailScreenState
   // 기록 저장
   // ==============================================================
 
-  Future<void> _saveRecord() async {
+  Future<void> _saveRecord({
+    bool showMessage = true,
+  }) async {
 
     final updatedRecord =
         TripRecord(
+
       regionName:
           widget.record.regionName,
 
@@ -795,7 +877,9 @@ class _TravelRecordDetailScreenState
           _diaryController.text.trim(),
 
       photoPaths:
-          widget.record.photoPaths,
+          List<String>.from(
+        widget.record.photoPaths,
+      ),
 
       personalityType:
           widget.record.personalityType,
@@ -804,7 +888,9 @@ class _TravelRecordDetailScreenState
           widget.record.recommendedRegion,
 
       visitedPlaces:
-          widget.record.visitedPlaces,
+          List<String>.from(
+        widget.record.visitedPlaces,
+      ),
     );
 
 
@@ -814,16 +900,23 @@ class _TravelRecordDetailScreenState
     );
 
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
 
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      const SnackBar(
-        content:
-            Text('여행 기록이 저장되었습니다.'),
-      ),
-    );
+    if (showMessage) {
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content:
+              Text(
+            '여행 기록이 저장되었습니다.',
+          ),
+        ),
+      );
+    }
   }
 
 
@@ -863,20 +956,25 @@ class _TravelRecordDetailScreenState
 
         elevation: 0,
 
+
         leading:
             IconButton(
 
-          icon: const Icon(
+          icon:
+              const Icon(
             Icons.arrow_back,
             color: Colors.black,
           ),
+
 
           onPressed: () {
             Navigator.pop(context);
           },
         ),
 
-        title: Text(
+
+        title:
+            Text(
           record.regionName,
 
           style:
@@ -895,10 +993,12 @@ class _TravelRecordDetailScreenState
         padding:
             const EdgeInsets.all(20),
 
+
         child: Column(
 
           crossAxisAlignment:
               CrossAxisAlignment.start,
+
 
           children: [
 
@@ -914,6 +1014,7 @@ class _TravelRecordDetailScreenState
               height:
                   220,
 
+
               decoration:
                   BoxDecoration(
 
@@ -921,45 +1022,104 @@ class _TravelRecordDetailScreenState
                     Colors.grey.shade200,
 
                 borderRadius:
-                    BorderRadius.circular(
-                  20,
-                ),
+                    BorderRadius.circular(20),
               ),
+
 
               child:
                   Stack(
 
                 children: [
 
-                  const Center(
-                    child: Text(
-                      '🌊 여행 대표사진',
-                      style:
-                          TextStyle(
-                        fontSize: 20,
+                  // ------------------------------------------------
+                  // 사진이 있으면 실제 사진 표시
+                  // ------------------------------------------------
+
+                  if (record.photoPaths.isNotEmpty)
+
+                    Positioned.fill(
+
+                      child:
+                          ClipRRect(
+
+                        borderRadius:
+                            BorderRadius.circular(20),
+
+
+                        child:
+                            Image.file(
+
+                          File(
+                            record.photoPaths.first,
+                          ),
+
+                          fit:
+                              BoxFit.cover,
+
+                          errorBuilder:
+                              (
+                            context,
+                            error,
+                            stackTrace,
+                          ) {
+
+                            return const Center(
+                              child:
+                                  Text(
+                                '📸 사진을 불러올 수 없어요',
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    )
+
+
+                  // ------------------------------------------------
+                  // 사진이 없으면 기본 화면
+                  // ------------------------------------------------
+
+                  else
+
+                    const Center(
+
+                      child:
+                          Text(
+                        '🌊 여행 대표사진',
+
+                        style:
+                            TextStyle(
+                          fontSize: 20,
+                        ),
                       ),
                     ),
-                  ),
 
+
+                  // ------------------------------------------------
+                  // 사진 추가 버튼
+                  // ------------------------------------------------
 
                   Positioned(
 
-                    bottom: 15,
-                    right: 15,
+                    bottom:
+                        15,
+
+                    right:
+                        15,
+
 
                     child:
                         ElevatedButton.icon(
 
-                      onPressed: () {
+                      onPressed:
+                          _addPhoto,
 
-                        // 사진 추가 기능은
-                        // image_picker 연결 시 구현
-                      },
 
                       icon:
                           const Icon(
                         Icons.add_a_photo,
                       ),
+
 
                       label:
                           const Text(
@@ -982,6 +1142,7 @@ class _TravelRecordDetailScreenState
             // ======================================================
 
             Text(
+
               '${record.regionName} 여행',
 
               style:
@@ -999,6 +1160,7 @@ class _TravelRecordDetailScreenState
 
 
             Text(
+
               '${_formatDate(record.startDate)}'
               ' — '
               '${_formatDate(record.endDate)}',
@@ -1018,6 +1180,7 @@ class _TravelRecordDetailScreenState
 
 
             Row(
+
               children: [
 
                 const Icon(
@@ -1025,11 +1188,14 @@ class _TravelRecordDetailScreenState
                   size: 19,
                 ),
 
+
                 const SizedBox(
                   width: 5,
                 ),
 
+
                 Text(
+
                   '${record.visitedPlaces.length}곳 방문',
 
                   style:
@@ -1060,6 +1226,7 @@ class _TravelRecordDetailScreenState
             // ======================================================
 
             const Text(
+
               '🗺️ 방문한 여행지',
 
               style:
@@ -1081,8 +1248,10 @@ class _TravelRecordDetailScreenState
               width:
                   double.infinity,
 
+
               padding:
                   const EdgeInsets.all(20),
+
 
               decoration:
                   BoxDecoration(
@@ -1091,10 +1260,9 @@ class _TravelRecordDetailScreenState
                     Colors.white,
 
                 borderRadius:
-                    BorderRadius.circular(
-                  20,
-                ),
+                    BorderRadius.circular(20),
               ),
+
 
               child:
 
@@ -1104,37 +1272,36 @@ class _TravelRecordDetailScreenState
                           '방문한 여행지가 없습니다.',
                         )
 
+
                       : Column(
 
                           crossAxisAlignment:
-                              CrossAxisAlignment
-                                  .start,
+                              CrossAxisAlignment.start,
+
 
                           children: [
 
                             for (
                               int i = 0;
                               i <
-                                  record
-                                      .visitedPlaces
-                                      .length;
+                                  record.visitedPlaces.length;
                               i++
                             )
 
                               Padding(
 
                                 padding:
-                                    const EdgeInsets
-                                        .only(
+                                    const EdgeInsets.only(
                                   bottom: 12,
                                 ),
+
 
                                 child:
                                     Row(
 
                                   crossAxisAlignment:
-                                      CrossAxisAlignment
-                                          .start,
+                                      CrossAxisAlignment.start,
+
 
                                   children: [
 
@@ -1143,49 +1310,52 @@ class _TravelRecordDetailScreenState
                                       width: 26,
                                       height: 26,
 
+
                                       alignment:
-                                          Alignment
-                                              .center,
+                                          Alignment.center,
+
 
                                       decoration:
                                           BoxDecoration(
 
                                         color:
-                                            Colors.blue
-                                                .shade50,
+                                            Colors.blue.shade50,
 
                                         shape:
-                                            BoxShape
-                                                .circle,
+                                            BoxShape.circle,
                                       ),
+
 
                                       child:
                                           Text(
+
                                         '${i + 1}',
+
                                         style:
                                             const TextStyle(
-                                          fontSize:
-                                              12,
+                                          fontSize: 12,
                                           fontWeight:
-                                              FontWeight
-                                                  .bold,
+                                              FontWeight.bold,
                                         ),
                                       ),
                                     ),
+
 
                                     const SizedBox(
                                       width: 10,
                                     ),
 
+
                                     Expanded(
+
                                       child:
                                           Text(
-                                        record
-                                            .visitedPlaces[i],
+
+                                        record.visitedPlaces[i],
+
                                         style:
                                             const TextStyle(
-                                          fontSize:
-                                              15,
+                                          fontSize: 15,
                                         ),
                                       ),
                                     ),
@@ -1211,8 +1381,10 @@ class _TravelRecordDetailScreenState
               width:
                   double.infinity,
 
+
               padding:
                   const EdgeInsets.all(20),
+
 
               decoration:
                   BoxDecoration(
@@ -1221,10 +1393,9 @@ class _TravelRecordDetailScreenState
                     Colors.white,
 
                 borderRadius:
-                    BorderRadius.circular(
-                  20,
-                ),
+                    BorderRadius.circular(20),
               ),
+
 
               child:
                   Column(
@@ -1232,9 +1403,11 @@ class _TravelRecordDetailScreenState
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
 
+
                 children: [
 
                   const Text(
+
                     '✍️ 여행 일기',
 
                     style:
@@ -1252,6 +1425,7 @@ class _TravelRecordDetailScreenState
 
 
                   Text(
+
                     '이번 여행은 어땠나요?',
 
                     style:
@@ -1275,27 +1449,27 @@ class _TravelRecordDetailScreenState
                     maxLines:
                         8,
 
+
                     decoration:
                         InputDecoration(
 
                       hintText:
                           '여행에서 느낀 점을 자유롭게 기록해보세요.',
 
+
                       filled:
                           true,
 
+
                       fillColor:
-                          const Color(
-                        0xFFF7F8FA,
-                      ),
+                          const Color(0xFFF7F8FA),
+
 
                       border:
                           OutlineInputBorder(
 
                         borderRadius:
-                            BorderRadius.circular(
-                          15,
-                        ),
+                            BorderRadius.circular(15),
 
                         borderSide:
                             BorderSide.none,
@@ -1321,14 +1495,17 @@ class _TravelRecordDetailScreenState
                     height:
                         52,
 
+
                     child:
                         ElevatedButton(
 
                       onPressed:
-                          _saveRecord,
+                          () => _saveRecord(),
+
 
                       child:
                           const Text(
+
                         '기록 저장',
 
                         style:
