@@ -8,7 +8,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class TripRecord {
   final String regionName;
+
+  /// 기록이 저장된 날짜
   final DateTime createdAt;
+
+  /// 여행 시작일
+  final DateTime startDate;
+
+  /// 여행 종료일
+  final DateTime endDate;
 
   /// 여행 일기
   final String diary;
@@ -28,12 +36,23 @@ class TripRecord {
   TripRecord({
     required this.regionName,
     DateTime? createdAt,
+
+    /// 시작일을 따로 지정하지 않으면
+    /// 기록 생성일을 사용
+    DateTime? startDate,
+
+    /// 종료일을 따로 지정하지 않으면
+    /// 시작일을 사용
+    DateTime? endDate,
+
     this.diary = '',
     List<String>? photoPaths,
     this.personalityType,
     this.recommendedRegion,
     List<String>? visitedPlaces,
   })  : createdAt = createdAt ?? DateTime.now(),
+        startDate = startDate ?? createdAt ?? DateTime.now(),
+        endDate = endDate ?? startDate ?? createdAt ?? DateTime.now(),
         photoPaths = photoPaths ?? [],
         visitedPlaces = visitedPlaces ?? [];
 
@@ -44,7 +63,14 @@ class TripRecord {
   Map<String, dynamic> toJson() {
     return {
       'regionName': regionName,
+
+      // 기존 데이터
       'createdAt': createdAt.toIso8601String(),
+
+      // 새로 추가된 여행 기간
+      'startDate': startDate.toIso8601String(),
+      'endDate': endDate.toIso8601String(),
+
       'diary': diary,
       'photoPaths': photoPaths,
       'personalityType': personalityType,
@@ -56,27 +82,78 @@ class TripRecord {
   factory TripRecord.fromJson(
     Map<String, dynamic> json,
   ) {
+    // ----------------------------------------------------------
+    // 기존 기록의 createdAt
+    // ----------------------------------------------------------
+
+    final createdAt =
+        DateTime.tryParse(
+              json['createdAt'] as String? ?? '',
+            ) ??
+            DateTime.now();
+
+    // ----------------------------------------------------------
+    // 여행 시작일
+    //
+    // 새 기록에는 startDate가 존재하고,
+    // 기존 기록에는 없을 수 있음.
+    //
+    // 기존 기록이라면 createdAt을 사용.
+    // ----------------------------------------------------------
+
+    final startDate =
+        DateTime.tryParse(
+              json['startDate'] as String? ?? '',
+            ) ??
+            createdAt;
+
+    // ----------------------------------------------------------
+    // 여행 종료일
+    //
+    // 새 기록에는 endDate가 존재하고,
+    // 기존 기록에는 없을 수 있음.
+    //
+    // 기존 기록이라면 startDate를 사용.
+    // ----------------------------------------------------------
+
+    final endDate =
+        DateTime.tryParse(
+              json['endDate'] as String? ?? '',
+            ) ??
+            startDate;
+
     return TripRecord(
       regionName:
           json['regionName'] as String? ?? '',
-      createdAt: DateTime.tryParse(
-            json['createdAt'] as String? ?? '',
-          ) ??
-          DateTime.now(),
+
+      createdAt: createdAt,
+
+      startDate: startDate,
+
+      endDate: endDate,
+
       diary:
           json['diary'] as String? ?? '',
+
       photoPaths:
           (json['photoPaths'] as List?)
-                  ?.map((e) => e.toString())
+                  ?.map(
+                    (e) => e.toString(),
+                  )
                   .toList() ??
               [],
+
       personalityType:
           json['personalityType'] as String?,
+
       recommendedRegion:
           json['recommendedRegion'] as String?,
+
       visitedPlaces:
           (json['visitedPlaces'] as List?)
-                  ?.map((e) => e.toString())
+                  ?.map(
+                    (e) => e.toString(),
+                  )
                   .toList() ??
               [],
     );
@@ -86,7 +163,9 @@ class TripRecord {
     return jsonEncode(toJson());
   }
 
-  factory TripRecord.decode(String value) {
+  factory TripRecord.decode(
+    String value,
+  ) {
     final decoded = jsonDecode(value);
 
     return TripRecord.fromJson(
@@ -110,7 +189,8 @@ class TripRecordStorage {
     final prefs =
         await SharedPreferences.getInstance();
 
-    final source = prefs.getString(_key);
+    final source =
+        prefs.getString(_key);
 
     if (source == null || source.isEmpty) {
       return [];
@@ -142,7 +222,8 @@ class TripRecordStorage {
   static Future<void> saveRecord(
     TripRecord record,
   ) async {
-    final records = await loadRecords();
+    final records =
+        await loadRecords();
 
     records.insert(0, record);
 
@@ -157,9 +238,11 @@ class TripRecordStorage {
     int index,
     TripRecord record,
   ) async {
-    final records = await loadRecords();
+    final records =
+        await loadRecords();
 
-    if (index < 0 || index >= records.length) {
+    if (index < 0 ||
+        index >= records.length) {
       return;
     }
 
@@ -175,9 +258,11 @@ class TripRecordStorage {
   static Future<void> deleteRecord(
     int index,
   ) async {
-    final records = await loadRecords();
+    final records =
+        await loadRecords();
 
-    if (index < 0 || index >= records.length) {
+    if (index < 0 ||
+        index >= records.length) {
       return;
     }
 
@@ -210,7 +295,11 @@ class TripRecordStorage {
     await prefs.setString(
       _key,
       jsonEncode(
-        records.map((e) => e.toJson()).toList(),
+        records
+            .map(
+              (e) => e.toJson(),
+            )
+            .toList(),
       ),
     );
   }

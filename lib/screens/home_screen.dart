@@ -5,6 +5,8 @@ import 'itinerary_screen.dart';
 
 import '../models/travel_plan.dart';
 import '../services/travel_plan_storage.dart';
+import '../services/trip_record_storage.dart';
+import '../screens/record_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -65,6 +67,110 @@ class _HomeScreenState extends State<HomeScreen> {
     // 돌아온 뒤 최신 데이터 다시 불러오기
     await _loadTravelPlan();
   }
+
+// ============================================================
+// 여행 완료 → 날짜 선택 → 기록으로 저장
+// ============================================================
+
+Future<void> _completeTravel() async {
+  if (savedPlan == null) return;
+
+  final plan = savedPlan!;
+
+  // ----------------------------------------------------------
+  // 1. 여행 날짜 선택
+  // ----------------------------------------------------------
+
+  final selectedRange = await showDateRangePicker(
+    context: context,
+    firstDate: DateTime(2020),
+    lastDate: DateTime(2100),
+    initialDateRange: DateTimeRange(
+      start: DateTime.now(),
+      end: DateTime.now(),
+    ),
+    helpText: '여행 기간을 선택해주세요',
+    cancelText: '취소',
+    confirmText: '완료',
+  );
+
+  // 날짜 선택을 취소한 경우
+  if (selectedRange == null) {
+    return;
+  }
+
+  // ----------------------------------------------------------
+  // 2. 방문한 관광지 이름 가져오기
+  // ----------------------------------------------------------
+
+  final visitedPlaces = <String>[];
+
+  for (final day in plan.days) {
+    for (final spot in day.spots) {
+      visitedPlaces.add(spot.name);
+    }
+  }
+
+  // ----------------------------------------------------------
+  // 3. 여행 기록 생성
+  // ----------------------------------------------------------
+
+  try {
+    final record = TripRecord(
+      regionName: plan.regionName,
+
+      // 캘린더에서 선택한 여행 기간
+      startDate: selectedRange.start,
+      endDate: selectedRange.end,
+
+      diary: '',
+      photoPaths: [],
+      visitedPlaces: visitedPlaces,
+    );
+
+    // --------------------------------------------------------
+    // 4. 기록 저장
+    // --------------------------------------------------------
+
+    await TripRecordStorage.saveRecord(record);
+
+    // --------------------------------------------------------
+    // 5. 현재 진행 중인 여행 삭제
+    // --------------------------------------------------------
+
+    await TravelPlanStorage.deleteTravelPlan();
+
+    if (!mounted) return;
+
+    setState(() {
+      savedPlan = null;
+    });
+
+    // --------------------------------------------------------
+    // 6. 완료 메시지
+    // --------------------------------------------------------
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          '여행이 완료되었어요 ✨ 기록 탭에서 확인해보세요.',
+        ),
+      ),
+    );
+  } catch (e) {
+    debugPrint('여행 완료 처리 실패: $e');
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          '여행 완료 처리 중 문제가 발생했어요.',
+        ),
+      ),
+    );
+  }
+}
 
   // ============================================================
   // 여행 일정 삭제
@@ -412,6 +518,38 @@ class _HomeScreenState extends State<HomeScreen> {
                     size: 18,
                   ),
                 ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _completeTravel,
+              icon: const Icon(
+                Icons.check_circle_outline,
+              ),
+              label: const Text(
+                '여행 완료',
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Theme.of(context)
+                .colorScheme
+                .onPrimaryContainer,
+                side: BorderSide(
+                  color: Theme.of(context)
+                  .colorScheme
+                  .onPrimaryContainer
+                  .withValues(alpha: 0.25),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius:
+                  BorderRadius.circular(14),
+                ),
               ),
             ),
           ),
