@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../screens/home_screen.dart';
 import '../screens/map_screen.dart';
 import '../screens/mypage_screen.dart';
-import '../screens/trip/record_list_screen.dart';
+import '../screens/record_screen.dart';
 
 class BottomNavigation extends StatefulWidget {
   const BottomNavigation({
@@ -21,7 +21,7 @@ class _BottomNavigationState
 
   final List<Widget> _pages = [
     const HomeScreen(),
-    const RecordListScreen(),
+    const RecordScreen(),
     const MapScreen(),
     const MyPageScreen(),
   ];

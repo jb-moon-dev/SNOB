@@ -179,7 +179,7 @@ class _RecordScreenState extends State<RecordScreen> {
     return Scaffold(
 
       backgroundColor:
-          const Color(0xFFF7F8FA),
+          const Color(0xFF1F4A3A),
 
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -853,7 +853,7 @@ class _TravelRecordDetailScreenState
     return Scaffold(
 
       backgroundColor:
-          const Color(0xFFF7F8FA),
+          const Color(0xFF1F4A3A),
 
 
       appBar: AppBar(

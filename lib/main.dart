@@ -48,6 +48,22 @@ class SNOBApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'SNOB',
+
+      // ========================================================
+      // SNOB 색상 테마
+      // ========================================================
+
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF1F4A3A),
+        ),
+
+        scaffoldBackgroundColor:
+            const Color(0xFFEEF3E8),
+
+        useMaterial3: true,
+      ),
+
       home: const StartScreen(),
     );
   }
