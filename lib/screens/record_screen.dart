@@ -1,403 +1,411 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
-import '../models/travel_plan.dart';
-import '../services/trip_record_storage.dart';
+
+// ================================================================
+// 여행 기록 데이터
+// ================================================================
+
+class TravelRecord {
+  final String region;
+  final String title;
+  final String startDate;
+  final String endDate;
+  final int placeCount;
+
+  final String typeName;
+  final int natureScore;
+  final int cityScore;
+  final int peopleScore;
+
+  final String recommendedRegion;
+  final String recommendedDescription;
+
+  final List<String> courses;
+
+  String? diary;
+  int mood;
+
+  TravelRecord({
+    required this.region,
+    required this.title,
+    required this.startDate,
+    required this.endDate,
+    required this.placeCount,
+    required this.typeName,
+    required this.natureScore,
+    required this.cityScore,
+    required this.peopleScore,
+    required this.recommendedRegion,
+    required this.recommendedDescription,
+    required this.courses,
+    this.diary,
+    this.mood = 3,
+  });
+}
+
+
+// ================================================================
+// 기록 화면
+// ================================================================
 
 class RecordScreen extends StatefulWidget {
-  final TravelPlan? travelPlan;
-
-  const RecordScreen({
-    super.key,
-    this.travelPlan,
-  });
+  const RecordScreen({super.key});
 
   @override
   State<RecordScreen> createState() => _RecordScreenState();
 }
 
+
 class _RecordScreenState extends State<RecordScreen> {
-  List<TripRecord> _records = [];
 
-  bool _isLoading = true;
+  // --------------------------------------------------------------
+  // 임시 여행 기록
+  // --------------------------------------------------------------
 
-  @override
-  void initState() {
-    super.initState();
-    _loadRecords();
-  }
+  final List<TravelRecord> _records = [
 
-  // ============================================================
-  // 기록 불러오기
-  // ============================================================
+    TravelRecord(
+      region: '제주',
+      title: '제주, 자연 속으로',
+      startDate: '2026.08.18',
+      endDate: '2026.08.22',
+      placeCount: 8,
+      typeName: '자연형 여행자',
+      natureScore: 86,
+      cityScore: 38,
+      peopleScore: 61,
+      recommendedRegion: '제주특별자치도',
+      recommendedDescription:
+          '자연과 여유를 중심으로 여행하기 좋은 지역',
+      courses: [
+        'DAY 1  제주공항 → 동문시장 → 용두암',
+        'DAY 2  성산일출봉 → 섭지코지 → 우도',
+        'DAY 3  애월 → 한담해안산책로',
+      ],
+      diary:
+          '제주에서 보낸 5일은 생각보다 훨씬 여유로웠다.\n\n'
+          '사람이 많은 곳보다 한적한 바닷길을 걸었던 순간이 가장 기억에 남는다.',
+      mood: 4,
+    ),
 
-  Future<void> _loadRecords() async {
-    try {
-      final records = await TripRecordStorage.loadRecords();
+    TravelRecord(
+      region: '강릉',
+      title: '강릉, 바다를 따라',
+      startDate: '2026.07.12',
+      endDate: '2026.07.14',
+      placeCount: 5,
+      typeName: '힐링형 여행자',
+      natureScore: 72,
+      cityScore: 45,
+      peopleScore: 34,
+      recommendedRegion: '강원특별자치도',
+      recommendedDescription:
+          '조용한 자연과 여유로운 시간을 보내기 좋은 지역',
+      courses: [
+        'DAY 1  강릉역 → 안목해변 → 경포호',
+        'DAY 2  정동진 → 하슬라아트월드',
+        'DAY 3  주문진 → 영진해변',
+      ],
+      diary: '',
+      mood: 3,
+    ),
+  ];
 
-      if (!mounted) return;
 
-      setState(() {
-        _records = records;
-        _isLoading = false;
-      });
-    } catch (e) {
-      debugPrint('여행 기록 불러오기 실패: $e');
+  // ==============================================================
+  // 기록 추가
+  // ==============================================================
 
-      if (!mounted) return;
+  void _addRecord() {
 
-      setState(() {
-        _records = [];
-        _isLoading = false;
-      });
-    }
-  }
+    final newRecord = TravelRecord(
+      region: '새로운 여행',
+      title: '새로운 여행 기록',
+      startDate: '2026.08.30',
+      endDate: '2026.08.30',
+      placeCount: 0,
 
-  // ============================================================
-  // 새 기록 작성
-  // ============================================================
+      // 나중에 테스트 결과와 연결
+      typeName: '여행자 유형',
+      natureScore: 50,
+      cityScore: 50,
+      peopleScore: 50,
 
-  Future<void> _openCreateRecord() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => RecordEditorScreen(
-          travelPlan: widget.travelPlan,
-        ),
-      ),
+      // 나중에 추천 시스템과 연결
+      recommendedRegion: '추천 지역',
+      recommendedDescription:
+          '여행 성향을 바탕으로 추천된 지역입니다.',
+
+      // 나중에 실제 여행 코스와 연결
+      courses: [],
     );
 
-    await _loadRecords();
+    setState(() {
+      _records.insert(0, newRecord);
+    });
+
+    // 새로 만든 여행 기록으로 바로 이동
+    _openRecord(newRecord);
   }
 
-  // ============================================================
-  // 기록 상세
-  // ============================================================
 
-  Future<void> _openRecordDetail(
-    TripRecord record,
-  ) async {
-    await Navigator.push(
+  // ==============================================================
+  // 여행 기록 상세 화면
+  // ==============================================================
+
+  void _openRecord(TravelRecord record) {
+
+    Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => RecordDetailScreen(
+        builder: (context) => TravelRecordDetailScreen(
           record: record,
         ),
       ),
-    );
-
-    await _loadRecords();
+    ).then((_) {
+      setState(() {});
+    });
   }
 
-  // ============================================================
-  // 기록 삭제
-  // ============================================================
 
-  Future<void> _deleteRecord(int index) async {
-    final shouldDelete = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text(
-            '여행 기록을 삭제할까요?',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: const Text(
-            '삭제한 기록은 다시 복구할 수 없어요.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context, false);
-              },
-              child: const Text('취소'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context, true);
-              },
-              child: const Text(
-                '삭제',
-                style: TextStyle(
-                  color: Colors.red,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (shouldDelete != true) {
-      return;
-    }
-
-    await TripRecordStorage.deleteRecord(index);
-
-    await _loadRecords();
-
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('여행 기록을 삭제했어요.'),
-      ),
-    );
-  }
-
-  // ============================================================
-  // 날짜
-  // ============================================================
-
-  String _formatDate(DateTime date) {
-    return '${date.year}.${date.month.toString().padLeft(2, '0')}.'
-        '${date.day.toString().padLeft(2, '0')}';
-  }
-
-  // ============================================================
-  // 화면
-  // ============================================================
+  // ==============================================================
+  // Build
+  // ==============================================================
 
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
-      backgroundColor: Colors.white,
+
+      backgroundColor: const Color(0xFFF7F8FA),
 
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        scrolledUnderElevation: 0,
-        titleSpacing: 20,
         title: const Text(
           '기록',
           style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
             color: Colors.black,
-          ),
-        ),
-      ),
-
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openCreateRecord,
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        elevation: 2,
-        icon: const Icon(Icons.add),
-        label: const Text(
-          '기록 추가',
-          style: TextStyle(
             fontWeight: FontWeight.bold,
           ),
         ),
       ),
 
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
-          : RefreshIndicator(
-              onRefresh: _loadRecords,
-              child: _records.isEmpty
-                  ? _buildEmptyState()
-                  : ListView(
-                      padding: const EdgeInsets.fromLTRB(
-                        20,
-                        8,
-                        20,
-                        110,
+
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+
+          children: [
+
+            // ======================================================
+            // 제목
+            // ======================================================
+
+            const Text(
+              '나의 여행을 다시 만나보세요',
+              style: TextStyle(
+                fontSize: 25,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+
+            // ======================================================
+            // 나의 여행 요약 카드
+            // ======================================================
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(22),
+
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+
+                children: [
+
+                  Row(
+                    children: [
+
+                      Container(
+                        width: 48,
+                        height: 48,
+
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          shape: BoxShape.circle,
+                        ),
+
+                        child: const Center(
+                          child: Text(
+                            '✈️',
+                            style: TextStyle(fontSize: 24),
+                          ),
+                        ),
                       ),
-                      children: [
-                        _buildHeader(),
 
-                        const SizedBox(height: 24),
+                      const SizedBox(width: 14),
 
-                        ...List.generate(
-                          _records.length,
-                          (index) {
-                            return Padding(
-                              padding: const EdgeInsets.only(
-                                bottom: 14,
-                              ),
-                              child: _buildRecordCard(
-                                _records[index],
-                                index,
-                              ),
-                            );
-                          },
+                      const Text(
+                        '나의 여행',
+                        style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  Text(
+                    '지금까지 ${_records.length}개의 여행을 기록했어요',
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Text(
+                    _records.isNotEmpty
+                        ? '최근 여행  ${_records.first.region} · '
+                          '${_records.first.startDate}'
+                        : '아직 기록된 여행이 없어요',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+
+            const SizedBox(height: 32),
+
+
+            // ======================================================
+            // 여행 기록
+            // ======================================================
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
+              children: [
+
+                const Text(
+                  '여행 기록',
+                  style: TextStyle(
+                    fontSize: 21,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                TextButton(
+                  onPressed: _addRecord,
+
+                  child: const Text(
+                    '+ 여행 기록 만들기',
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+
+            // ======================================================
+            // 여행 카드
+            // ======================================================
+
+            ..._records.map(
+              (record) => Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+
+                child: GestureDetector(
+                  onTap: () => _openRecord(record),
+
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(18),
+
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
-            ),
-    );
-  }
 
-  // ============================================================
-  // 상단 설명
-  // ============================================================
-
-  Widget _buildHeader() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          '나의 여행 기록',
-          style: TextStyle(
-            fontSize: 19,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          '떠났던 여행의 순간들을 다시 만나보세요.',
-          style: TextStyle(
-            fontSize: 13,
-            color: Colors.grey.shade600,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ============================================================
-  // 기록 카드
-  // ============================================================
-
-  Widget _buildRecordCard(
-    TripRecord record,
-    int index,
-  ) {
-    final hasPhotos = record.photoPaths.isNotEmpty;
-
-    return GestureDetector(
-      onTap: () => _openRecordDetail(record),
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(22),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ----------------------------------------------------
-            // 대표 사진
-            // ----------------------------------------------------
-
-            if (hasPhotos)
-              SizedBox(
-                height: 190,
-                width: double.infinity,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Image.file(
-                      File(record.photoPaths.first),
-                      fit: BoxFit.cover,
-                      errorBuilder: (
-                        context,
-                        error,
-                        stackTrace,
-                      ) {
-                        return _buildPhotoPlaceholder();
-                      },
-                    ),
-
-                    Positioned(
-                      top: 12,
-                      right: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.photo_library_outlined,
-                              size: 14,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              '${record.photoPaths.length}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            else
-              _buildPhotoPlaceholder(),
-
-            // ----------------------------------------------------
-            // 내용
-            // ----------------------------------------------------
-
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                18,
-                17,
-                12,
-                17,
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
                     child: Column(
                       crossAxisAlignment:
                           CrossAxisAlignment.start,
+
                       children: [
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.location_on_outlined,
-                              size: 17,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                record.regionName,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                maxLines: 1,
-                                overflow:
-                                    TextOverflow.ellipsis,
+
+                        // ------------------------------------------
+                        // 여행 사진
+                        // ------------------------------------------
+
+                        Container(
+                          height: 150,
+                          width: double.infinity,
+
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade200,
+                            borderRadius:
+                                BorderRadius.circular(15),
+                          ),
+
+                          child: const Center(
+                            child: Text(
+                              '📸 여행 사진',
+                              style: TextStyle(
+                                fontSize: 18,
                               ),
                             ),
-                          ],
+                          ),
                         ),
 
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 15),
 
                         Text(
-                          _formatDate(record.createdAt),
+                          record.region,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                        const SizedBox(height: 7),
+
+                        Text(
+                          '${record.startDate} - ${record.endDate}',
                           style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade500,
+                            color: Colors.grey.shade600,
                           ),
                         ),
 
@@ -405,229 +413,78 @@ class _RecordScreenState extends State<RecordScreen> {
 
                         Row(
                           children: [
-                            _buildSmallInfo(
-                              Icons.place_outlined,
-                              '${record.visitedPlaces.length}곳',
+
+                            Icon(
+                              Icons.location_on_outlined,
+                              size: 17,
+                              color: Colors.grey.shade600,
                             ),
-                            const SizedBox(width: 12),
-                            _buildSmallInfo(
-                              Icons.photo_outlined,
-                              '${record.photoPaths.length}장',
+
+                            const SizedBox(width: 4),
+
+                            Text(
+                              '${record.placeCount}곳 방문',
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                              ),
                             ),
                           ],
                         ),
-
-                        if (record.diary.isNotEmpty) ...[
-                          const SizedBox(height: 12),
-                          Text(
-                            record.diary,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 13,
-                              height: 1.5,
-                              color: Colors.grey.shade700,
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                   ),
-
-                  PopupMenuButton<String>(
-                    padding: EdgeInsets.zero,
-                    onSelected: (value) {
-                      if (value == 'delete') {
-                        _deleteRecord(index);
-                      }
-                    },
-                    itemBuilder: (context) {
-                      return const [
-                        PopupMenuItem(
-                          value: 'delete',
-                          child: Text('삭제'),
-                        ),
-                      ];
-                    },
-                    icon: Icon(
-                      Icons.more_vert,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
+
+
+            const SizedBox(height: 30),
           ],
         ),
       ),
     );
   }
-
-  // ============================================================
-  // 작은 정보
-  // ============================================================
-
-  Widget _buildSmallInfo(
-    IconData icon,
-    String text,
-  ) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          icon,
-          size: 15,
-          color: Colors.grey.shade600,
-        ),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey.shade600,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ============================================================
-  // 사진 없음
-  // ============================================================
-
-  Widget _buildPhotoPlaceholder() {
-    return Container(
-      height: 150,
-      width: double.infinity,
-      color: Colors.grey.shade100,
-      child: Center(
-        child: Icon(
-          Icons.landscape_outlined,
-          size: 45,
-          color: Colors.grey.shade400,
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // 빈 상태
-  // ============================================================
-
-  Widget _buildEmptyState() {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      children: [
-        SizedBox(
-          height: MediaQuery.of(context).size.height * 0.65,
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(30),
-              child: Column(
-                mainAxisAlignment:
-                    MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 76,
-                    height: 76,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Center(
-                      child: Text(
-                        '📖',
-                        style: TextStyle(
-                          fontSize: 35,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 22),
-
-                  const Text(
-                    '아직 여행 기록이 없어요',
-                    style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  Text(
-                    '여행을 다녀온 뒤 사진과 일기를 남겨보세요.\n'
-                    '나만의 여행 이야기가 차곡차곡 쌓여요.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.5,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-
-                  const SizedBox(height: 25),
-
-                  ElevatedButton.icon(
-                    onPressed: _openCreateRecord,
-                    icon: const Icon(Icons.add),
-                    label: const Text(
-                      '첫 여행 기록 남기기',
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding:
-                          const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 13,
-                      ),
-                      shape:
-                          RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(14),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }
 
-// ================================================================
-// 기록 작성 화면
-// ================================================================
 
-class RecordEditorScreen extends StatefulWidget {
-  final TravelPlan? travelPlan;
+// ==================================================================
+// 여행 기록 상세 화면
+// ==================================================================
 
-  const RecordEditorScreen({
+class TravelRecordDetailScreen extends StatefulWidget {
+
+  final TravelRecord record;
+
+  const TravelRecordDetailScreen({
     super.key,
-    this.travelPlan,
+    required this.record,
   });
 
   @override
-  State<RecordEditorScreen> createState() =>
-      _RecordEditorScreenState();
+  State<TravelRecordDetailScreen> createState() =>
+      _TravelRecordDetailScreenState();
 }
 
-class _RecordEditorScreenState
-    extends State<RecordEditorScreen> {
-  final TextEditingController _diaryController =
-      TextEditingController();
 
-  final ImagePicker _picker = ImagePicker();
+class _TravelRecordDetailScreenState
+    extends State<TravelRecordDetailScreen> {
 
-  List<String> _photoPaths = [];
+  late TextEditingController _diaryController;
 
-  bool _isSaving = false;
+  late int _mood;
+
+
+  @override
+  void initState() {
+    super.initState();
+
+    _diaryController = TextEditingController(
+      text: widget.record.diary ?? '',
+    );
+
+    _mood = widget.record.mood;
+  }
+
 
   @override
   void dispose() {
@@ -635,1002 +492,733 @@ class _RecordEditorScreenState
     super.dispose();
   }
 
-  // ============================================================
-  // 사진 추가
-  // ============================================================
 
-  Future<void> _pickPhoto() async {
-    try {
-      final XFile? image =
-          await _picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 85,
-      );
-
-      if (image == null) {
-        return;
-      }
-
-      setState(() {
-        _photoPaths.add(image.path);
-      });
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            '사진을 불러오지 못했어요.',
-          ),
-        ),
-      );
-    }
-  }
-
-  // ============================================================
-  // 사진 삭제
-  // ============================================================
-
-  void _removePhoto(int index) {
-    setState(() {
-      _photoPaths.removeAt(index);
-    });
-  }
-
-  // ============================================================
+  // ==============================================================
   // 기록 저장
-  // ============================================================
+  // ==============================================================
 
-  Future<void> _saveRecord() async {
-    if (widget.travelPlan == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            '먼저 여행 일정을 만들어주세요.',
-          ),
-        ),
-      );
-      return;
-    }
+  void _saveRecord() {
 
-    final plan = widget.travelPlan!;
+    widget.record.diary =
+        _diaryController.text.trim();
 
-    final visitedPlaces = <String>[];
+    widget.record.mood = _mood;
 
-    for (final day in plan.days) {
-      for (final spot in day.spots) {
-        visitedPlaces.add(spot.name);
-      }
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('여행 기록이 저장되었습니다.'),
+      ),
+    );
 
-    setState(() {
-      _isSaving = true;
-    });
-
-    try {
-      final record = TripRecord(
-        regionName: plan.regionName,
-        diary: _diaryController.text.trim(),
-        photoPaths:
-            List<String>.from(_photoPaths),
-        visitedPlaces: visitedPlaces,
-      );
-
-      await TripRecordStorage.saveRecord(
-        record,
-      );
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            '여행 기록을 저장했어요 ✨',
-          ),
-        ),
-      );
-
-      Navigator.pop(context);
-    } catch (e) {
-      debugPrint('기록 저장 실패: $e');
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            '기록 저장 중 문제가 발생했어요.',
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
-      }
-    }
+    setState(() {});
   }
 
-  // ============================================================
-  // 전체 방문 장소
-  // ============================================================
 
-  List<TravelSpot> _allSpots() {
-    if (widget.travelPlan == null) {
-      return [];
-    }
-
-    final result = <TravelSpot>[];
-
-    for (final day in widget.travelPlan!.days) {
-      result.addAll(day.spots);
-    }
-
-    return result;
-  }
-
-  // ============================================================
-  // 화면
-  // ============================================================
+  // ==============================================================
+  // Build
+  // ==============================================================
 
   @override
   Widget build(BuildContext context) {
-    final plan = widget.travelPlan;
-    final spots = _allSpots();
+
+    final record = widget.record;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+
+      backgroundColor: const Color(0xFFF7F8FA),
+
+
+      // ============================================================
+      // 상단
+      // ============================================================
 
       appBar: AppBar(
+
         backgroundColor: Colors.white,
+
         elevation: 0,
-        scrolledUnderElevation: 0,
-        title: const Text(
-          '새 여행 기록',
-          style: TextStyle(
+
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back,
+            color: Colors.black,
+          ),
+
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
+
+        title: Text(
+          record.region,
+          style: const TextStyle(
+            color: Colors.black,
             fontWeight: FontWeight.bold,
           ),
         ),
       ),
 
-      body: plan == null
-          ? _buildEmptyState()
-          : SafeArea(
-              child: ListView(
-                padding:
-                    const EdgeInsets.fromLTRB(
-                  20,
-                  12,
-                  20,
-                  40,
-                ),
+
+      body: SingleChildScrollView(
+
+        padding: const EdgeInsets.all(20),
+
+        child: Column(
+
+          crossAxisAlignment: CrossAxisAlignment.start,
+
+          children: [
+
+            // ======================================================
+            // 대표 사진
+            // ======================================================
+
+            Container(
+              width: double.infinity,
+              height: 220,
+
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(20),
+              ),
+
+              child: Stack(
+
                 children: [
-                  _buildTripHeader(plan),
 
-                  const SizedBox(height: 28),
-
-                  _buildSectionTitle(
-                    '이번 여행에서 방문한 곳',
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  _buildVisitedPlaces(spots),
-
-                  const SizedBox(height: 28),
-
-                  _buildSectionTitle(
-                    '여행 사진',
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  _buildPhotoSection(),
-
-                  const SizedBox(height: 28),
-
-                  _buildSectionTitle(
-                    '여행 일기',
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  _buildDiaryField(),
-
-                  const SizedBox(height: 30),
-
-                  SizedBox(
-                    width: double.infinity,
-                    height: 54,
-                    child: ElevatedButton(
-                      onPressed:
-                          _isSaving
-                              ? null
-                              : _saveRecord,
-                      style:
-                          ElevatedButton.styleFrom(
-                        backgroundColor:
-                            Colors.black,
-                        foregroundColor:
-                            Colors.white,
-                        elevation: 0,
-                        shape:
-                            RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(
-                            16,
-                          ),
-                        ),
+                  const Center(
+                    child: Text(
+                      '🌊 여행 대표사진',
+                      style: TextStyle(
+                        fontSize: 20,
                       ),
-                      child: _isSaving
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child:
-                                  CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color:
-                                    Colors.white,
-                              ),
-                            )
-                          : const Text(
-                              '여행 기록 저장하기',
-                              style:
-                                  TextStyle(
-                                fontSize: 16,
-                                fontWeight:
-                                    FontWeight.bold,
-                              ),
-                            ),
+                    ),
+                  ),
+
+
+                  Positioned(
+                    bottom: 15,
+                    right: 15,
+
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+
+                        // TODO:
+                        // image_picker 연결
+                      },
+
+                      icon: const Icon(
+                        Icons.add_a_photo,
+                      ),
+
+                      label: const Text(
+                        '사진 추가',
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-    );
-  }
 
-  // ============================================================
-  // 여행 헤더
-  // ============================================================
 
-  Widget _buildTripHeader(
-    TravelPlan plan,
-  ) {
-    return Container(
-      width: double.infinity,
-      padding:
-          const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius:
-            BorderRadius.circular(22),
-      ),
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration:
-                    BoxDecoration(
-                  color: Colors.white,
-                  borderRadius:
-                      BorderRadius.circular(
-                    14,
-                  ),
-                ),
-                child: const Center(
-                  child: Text(
-                    '🧳',
-                    style: TextStyle(
-                      fontSize: 23,
-                    ),
-                  ),
-                ),
+            const SizedBox(height: 25),
+
+
+            // ======================================================
+            // 여행 기본 정보
+            // ======================================================
+
+            Text(
+              record.title,
+              style: const TextStyle(
+                fontSize: 25,
+                fontWeight: FontWeight.bold,
               ),
-
-              const SizedBox(width: 13),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      plan.regionName,
-                      style:
-                          const TextStyle(
-                        fontSize: 22,
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${plan.days.length}일 · '
-                      '${plan.totalSpotCount}곳',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors
-                            .grey.shade600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          Text(
-            '여행을 떠났던 날의 기억을 남겨보세요.',
-            style: TextStyle(
-              fontSize: 13,
-              color:
-                  Colors.grey.shade600,
             ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  // ============================================================
-  // 방문 장소
-  // ============================================================
+            const SizedBox(height: 10),
 
-  Widget _buildVisitedPlaces(
-    List<TravelSpot> spots,
-  ) {
-    if (spots.isEmpty) {
-      return Container(
-        padding:
-            const EdgeInsets.all(20),
-        decoration:
-            BoxDecoration(
-          color:
-              Colors.grey.shade50,
-          borderRadius:
-              BorderRadius.circular(16),
-        ),
-        child: Text(
-          '아직 일정에 등록된 장소가 없어요.',
-          style: TextStyle(
-            color:
-                Colors.grey.shade600,
-          ),
-        ),
-      );
-    }
+            Text(
+              '${record.startDate} — ${record.endDate}',
+              style: TextStyle(
+                fontSize: 15,
+                color: Colors.grey.shade600,
+              ),
+            ),
 
-    return Container(
-      decoration:
-          BoxDecoration(
-        color:
-            Colors.grey.shade50,
-        borderRadius:
-            BorderRadius.circular(18),
-      ),
-      child: Column(
-        children: [
-          for (int i = 0;
-              i < spots.length;
-              i++)
-            Column(
+            const SizedBox(height: 12),
+
+
+            Row(
               children: [
-                ListTile(
-                  contentPadding:
-                      const EdgeInsets
-                          .symmetric(
-                    horizontal: 16,
+
+                const Text(
+                  '🌿 ',
+                  style: TextStyle(fontSize: 18),
+                ),
+
+                Text(
+                  record.typeName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
                   ),
-                  leading:
-                      Container(
-                    width: 36,
-                    height: 36,
-                    decoration:
-                        BoxDecoration(
-                      color:
-                          Colors.white,
-                      borderRadius:
-                          BorderRadius
-                              .circular(
-                        11,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+
+            Row(
+              children: [
+
+                const Text(
+                  '📍 ',
+                  style: TextStyle(fontSize: 18),
+                ),
+
+                Text(
+                  record.region,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+
+
+            const SizedBox(height: 30),
+
+            const Divider(),
+
+            const SizedBox(height: 25),
+
+
+            // ======================================================
+            // 여행 성향
+            // ======================================================
+
+            const Text(
+              '🧠 나의 여행 성향',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 15),
+
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+
+              child: Column(
+
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+
+                children: [
+
+                  Text(
+                    record.typeName,
+                    style: const TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  _ScoreBar(
+                    title: '자연',
+                    score: record.natureScore,
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  _ScoreBar(
+                    title: '도시',
+                    score: record.cityScore,
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  _ScoreBar(
+                    title: '사람',
+                    score: record.peopleScore,
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  TextButton(
+                    onPressed: () {
+
+                      // TODO:
+                      // 테스트 결과 화면으로 이동
+
+                    },
+
+                    child: const Text(
+                      '테스트 결과 다시 보기 ›',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+
+            const SizedBox(height: 30),
+
+
+            // ======================================================
+            // 추천 지역
+            // ======================================================
+
+            const Text(
+              '📍 추천 지역',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 15),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+
+              child: Column(
+
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+
+                children: [
+
+                  Text(
+                    record.recommendedRegion,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Text(
+                    '"${record.recommendedDescription}"',
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+
+            const SizedBox(height: 30),
+
+
+            // ======================================================
+            // 여행 코스
+            // ======================================================
+
+            const Text(
+              '🗺️ 나의 여행 코스',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 15),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+
+              child: record.courses.isEmpty
+
+                  ? const Text(
+                      '아직 기록된 여행 코스가 없습니다.',
+                    )
+
+                  : Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+
+                      children: [
+
+                        for (final course
+                            in record.courses) ...[
+
+                          Padding(
+                            padding:
+                                const EdgeInsets.only(
+                              bottom: 15,
+                            ),
+
+                            child: Text(
+                              course,
+                              style: const TextStyle(
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                        ],
+
+                        TextButton(
+                          onPressed: () {
+
+                            // TODO:
+                            // 전체 일정 화면
+
+                          },
+
+                          child: const Text(
+                            '전체 일정 보기 ›',
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+
+
+            const SizedBox(height: 30),
+
+
+            // ======================================================
+            // 여행 일기
+            // ======================================================
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+
+              child: Column(
+
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+
+                children: [
+
+                  const Text(
+                    '✍️ 여행 일기',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  Text(
+                    '이번 여행은 어땠나요?',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+
+                  const SizedBox(height: 15),
+
+
+                  // ------------------------------------------------
+                  // 일기 입력
+                  // ------------------------------------------------
+
+                  TextField(
+                    controller: _diaryController,
+
+                    maxLines: 8,
+
+                    decoration: InputDecoration(
+
+                      hintText:
+                          '여행에서 느낀 점을 자유롭게 기록해보세요.',
+
+                      filled: true,
+
+                      fillColor:
+                          const Color(0xFFF7F8FA),
+
+                      border: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(15),
+
+                        borderSide: BorderSide.none,
                       ),
                     ),
-                    child: Center(
-                      child: Text(
-                        '${i + 1}',
-                        style:
-                            const TextStyle(
-                          fontWeight:
-                              FontWeight.bold,
-                          fontSize: 13,
+                  ),
+
+
+                  const SizedBox(height: 25),
+
+
+                  // ------------------------------------------------
+                  // 기분
+                  // ------------------------------------------------
+
+                  const Text(
+                    '😊 이번 여행의 기분',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 15),
+
+
+                  Row(
+
+                    mainAxisAlignment:
+                        MainAxisAlignment.spaceAround,
+
+                    children: [
+
+                      _MoodButton(
+                        emoji: '😫',
+                        index: 1,
+                        selected: _mood,
+                        onTap: () {
+                          setState(() {
+                            _mood = 1;
+                          });
+                        },
+                      ),
+
+                      _MoodButton(
+                        emoji: '😐',
+                        index: 2,
+                        selected: _mood,
+                        onTap: () {
+                          setState(() {
+                            _mood = 2;
+                          });
+                        },
+                      ),
+
+                      _MoodButton(
+                        emoji: '🙂',
+                        index: 3,
+                        selected: _mood,
+                        onTap: () {
+                          setState(() {
+                            _mood = 3;
+                          });
+                        },
+                      ),
+
+                      _MoodButton(
+                        emoji: '😊',
+                        index: 4,
+                        selected: _mood,
+                        onTap: () {
+                          setState(() {
+                            _mood = 4;
+                          });
+                        },
+                      ),
+
+                      _MoodButton(
+                        emoji: '🤩',
+                        index: 5,
+                        selected: _mood,
+                        onTap: () {
+                          setState(() {
+                            _mood = 5;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+
+
+                  const SizedBox(height: 25),
+
+
+                  // ------------------------------------------------
+                  // 저장
+                  // ------------------------------------------------
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+
+                    child: ElevatedButton(
+
+                      onPressed: _saveRecord,
+
+                      child: const Text(
+                        '기록 저장',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
                   ),
-                  title: Text(
-                    spots[i].name,
-                    style:
-                        const TextStyle(
-                      fontSize: 14,
-                      fontWeight:
-                          FontWeight.w600,
-                    ),
-                  ),
-                  subtitle:
-                      spots[i].address !=
-                              null
-                          ? Text(
-                              spots[i]
-                                  .address!,
-                              maxLines: 1,
-                              overflow:
-                                  TextOverflow
-                                      .ellipsis,
-                            )
-                          : null,
-                ),
-                if (i != spots.length - 1)
-                  Divider(
-                    height: 1,
-                    indent: 68,
-                    color:
-                        Colors.grey.shade200,
-                  ),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // 사진
-  // ============================================================
-
-  Widget _buildPhotoSection() {
-    return SizedBox(
-      height: 105,
-      child: ListView.separated(
-        scrollDirection:
-            Axis.horizontal,
-        itemCount:
-            _photoPaths.length + 1,
-        separatorBuilder:
-            (_, __) =>
-                const SizedBox(width: 10),
-        itemBuilder:
-            (context, index) {
-          if (index ==
-              _photoPaths.length) {
-            return GestureDetector(
-              onTap: _pickPhoto,
-              child: Container(
-                width: 105,
-                decoration:
-                    BoxDecoration(
-                  color:
-                      Colors.grey.shade50,
-                  borderRadius:
-                      BorderRadius.circular(
-                    16,
-                  ),
-                  border: Border.all(
-                    color:
-                        Colors.grey.shade200,
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment:
-                      MainAxisAlignment
-                          .center,
-                  children: [
-                    Icon(
-                      Icons
-                          .add_photo_alternate_outlined,
-                      size: 27,
-                      color: Colors
-                          .grey.shade500,
-                    ),
-                    const SizedBox(
-                        height: 7),
-                    Text(
-                      '사진 추가',
-                      style:
-                          TextStyle(
-                        fontSize: 12,
-                        color: Colors
-                            .grey.shade600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          final path =
-              _photoPaths[index];
-
-          return Stack(
-            children: [
-              ClipRRect(
-                borderRadius:
-                    BorderRadius.circular(
-                  16,
-                ),
-                child: Image.file(
-                  File(path),
-                  width: 105,
-                  height: 105,
-                  fit: BoxFit.cover,
-                ),
-              ),
-
-              Positioned(
-                right: 6,
-                top: 6,
-                child:
-                    GestureDetector(
-                  onTap: () =>
-                      _removePhoto(index),
-                  child: Container(
-                    width: 25,
-                    height: 25,
-                    decoration:
-                        const BoxDecoration(
-                      color:
-                          Colors.black54,
-                      shape:
-                          BoxShape.circle,
-                    ),
-                    child:
-                        const Icon(
-                      Icons.close,
-                      color:
-                          Colors.white,
-                      size: 16,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  // ============================================================
-  // 일기
-  // ============================================================
-
-  Widget _buildDiaryField() {
-    return TextField(
-      controller:
-          _diaryController,
-      maxLines: 7,
-      maxLength: 1000,
-      decoration:
-          InputDecoration(
-        hintText:
-            '이번 여행에서 기억에 남았던 순간을 기록해보세요.\n\n'
-            '어떤 장소가 좋았는지,\n'
-            '어떤 기분이었는지 자유롭게 적어보세요.',
-        hintStyle:
-            TextStyle(
-          fontSize: 13,
-          color:
-              Colors.grey.shade400,
-          height: 1.5,
-        ),
-        filled: true,
-        fillColor:
-            Colors.grey.shade50,
-        border:
-            OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(
-            18,
-          ),
-          borderSide:
-              BorderSide.none,
-        ),
-        contentPadding:
-            const EdgeInsets.all(
-          18,
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // 빈 상태
-  // ============================================================
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding:
-            const EdgeInsets.all(30),
-        child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
-          children: [
-            const Text(
-              '🧳',
-              style: TextStyle(
-                fontSize: 50,
+                ],
               ),
             ),
-            const SizedBox(
-                height: 20),
-            const Text(
-              '기록할 여행이 없어요',
-              style:
-                  TextStyle(
-                fontSize: 19,
-                fontWeight:
-                    FontWeight.bold,
-              ),
-            ),
-            const SizedBox(
-                height: 8),
-            Text(
-              '먼저 여행 일정을 만들어주세요.',
-              textAlign:
-                  TextAlign.center,
-              style: TextStyle(
-                color:
-                    Colors.grey.shade600,
-              ),
-            ),
+
+
+            const SizedBox(height: 30),
           ],
         ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // Section title
-  // ============================================================
-
-  Widget _buildSectionTitle(
-    String title,
-  ) {
-    return Text(
-      title,
-      style:
-          const TextStyle(
-        fontSize: 17,
-        fontWeight:
-            FontWeight.bold,
       ),
     );
   }
 }
 
-// ================================================================
-// 기록 상세 화면
-// ================================================================
 
-class RecordDetailScreen extends StatelessWidget {
-  final TripRecord record;
+// ==================================================================
+// 점수 바
+// ==================================================================
 
-  const RecordDetailScreen({
-    super.key,
-    required this.record,
+class _ScoreBar extends StatelessWidget {
+
+  final String title;
+  final int score;
+
+  const _ScoreBar({
+    required this.title,
+    required this.score,
   });
 
-  String _formatDate(DateTime date) {
-    return '${date.year}.${date.month.toString().padLeft(2, '0')}.'
-        '${date.day.toString().padLeft(2, '0')}';
-  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
 
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        title: const Text(
-          '여행 기록',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
+    return Row(
 
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          20,
-          10,
-          20,
-          40,
-        ),
-        children: [
-          // ------------------------------------------------------
-          // 제목
-          // ------------------------------------------------------
+      children: [
 
-          Text(
-            record.regionName,
+        SizedBox(
+          width: 45,
+          child: Text(
+            title,
             style: const TextStyle(
-              fontSize: 28,
+              fontSize: 14,
+            ),
+          ),
+        ),
+
+        Expanded(
+          child: ClipRRect(
+            borderRadius:
+                BorderRadius.circular(10),
+
+            child: LinearProgressIndicator(
+              value: score / 100,
+              minHeight: 9,
+              backgroundColor:
+                  Colors.grey.shade200,
+            ),
+          ),
+        ),
+
+        const SizedBox(width: 10),
+
+        SizedBox(
+          width: 30,
+
+          child: Text(
+            '$score',
+            textAlign: TextAlign.right,
+
+            style: const TextStyle(
               fontWeight: FontWeight.bold,
             ),
           ),
-
-          const SizedBox(height: 6),
-
-          Text(
-            _formatDate(record.createdAt),
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey.shade500,
-            ),
-          ),
-
-          // ------------------------------------------------------
-          // 성향
-          // ------------------------------------------------------
-
-          if (record.personalityType != null ||
-              record.recommendedRegion != null) ...[
-            const SizedBox(height: 22),
-            _buildPersonalityCard(),
-          ],
-
-          // ------------------------------------------------------
-          // 사진
-          // ------------------------------------------------------
-
-          if (record.photoPaths.isNotEmpty) ...[
-            const SizedBox(height: 28),
-
-            const Text(
-              '여행 사진',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            SizedBox(
-              height: 230,
-              child: ListView.separated(
-                scrollDirection:
-                    Axis.horizontal,
-                itemCount:
-                    record.photoPaths.length,
-                separatorBuilder:
-                    (_, __) =>
-                        const SizedBox(width: 10),
-                itemBuilder:
-                    (context, index) {
-                  return ClipRRect(
-                    borderRadius:
-                        BorderRadius.circular(18),
-                    child: Image.file(
-                      File(
-                        record.photoPaths[index],
-                      ),
-                      width: 230,
-                      height: 230,
-                      fit: BoxFit.cover,
-                      errorBuilder: (
-                        context,
-                        error,
-                        stackTrace,
-                      ) {
-                        return Container(
-                          width: 230,
-                          height: 230,
-                          color:
-                              Colors.grey.shade100,
-                          child: const Icon(
-                            Icons
-                                .broken_image_outlined,
-                            size: 40,
-                          ),
-                        );
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-
-          // ------------------------------------------------------
-          // 방문 장소
-          // ------------------------------------------------------
-
-          const SizedBox(height: 28),
-
-          const Text(
-            '방문한 곳',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          if (record.visitedPlaces.isEmpty)
-            Text(
-              '기록된 방문 장소가 없어요.',
-              style: TextStyle(
-                color: Colors.grey.shade600,
-              ),
-            )
-          else
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius:
-                    BorderRadius.circular(18),
-              ),
-              child: Column(
-                children: [
-                  for (
-                    int i = 0;
-                    i < record.visitedPlaces.length;
-                    i++
-                  )
-                    ListTile(
-                      leading: Container(
-                        width: 34,
-                        height: 34,
-                        alignment:
-                            Alignment.center,
-                        decoration:
-                            const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Text(
-                          '${i + 1}',
-                          style:
-                              const TextStyle(
-                            fontWeight:
-                                FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                      title: Text(
-                        record.visitedPlaces[i],
-                        style:
-                            const TextStyle(
-                          fontSize: 14,
-                          fontWeight:
-                              FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-
-          // ------------------------------------------------------
-          // 일기
-          // ------------------------------------------------------
-
-          if (record.diary.isNotEmpty) ...[
-            const SizedBox(height: 28),
-
-            const Text(
-              '여행 일기',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            Container(
-              width: double.infinity,
-              padding:
-                  const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius:
-                    BorderRadius.circular(18),
-              ),
-              child: Text(
-                record.diary,
-                style: const TextStyle(
-                  fontSize: 14,
-                  height: 1.7,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
+        ),
+      ],
     );
   }
+}
 
-  // ============================================================
-  // 성향 카드
-  // ============================================================
 
-  Widget _buildPersonalityCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius:
-            BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.psychology_outlined,
-              size: 21,
+// ==================================================================
+// 기분 버튼
+// ==================================================================
+
+class _MoodButton extends StatelessWidget {
+
+  final String emoji;
+  final int index;
+  final int selected;
+  final VoidCallback onTap;
+
+  const _MoodButton({
+    required this.emoji,
+    required this.index,
+    required this.selected,
+    required this.onTap,
+  });
+
+
+  @override
+  Widget build(BuildContext context) {
+
+    final isSelected = index == selected;
+
+    return GestureDetector(
+
+      onTap: onTap,
+
+      child: AnimatedContainer(
+
+        duration:
+            const Duration(milliseconds: 200),
+
+        width: 48,
+        height: 48,
+
+        decoration: BoxDecoration(
+
+          color: isSelected
+              ? Colors.blue.shade50
+              : Colors.transparent,
+
+          shape: BoxShape.circle,
+
+          border: Border.all(
+            color: isSelected
+                ? Colors.blue
+                : Colors.transparent,
+            width: 2,
+          ),
+        ),
+
+        child: Center(
+          child: Text(
+            emoji,
+            style: const TextStyle(
+              fontSize: 25,
             ),
           ),
-
-          const SizedBox(width: 13),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                if (record.personalityType != null)
-                  Text(
-                    record.personalityType!,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-
-                if (record.recommendedRegion != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    '추천 지역 · ${record.recommendedRegion!}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color:
-                          Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
