@@ -209,6 +209,38 @@ class SnobFinal {
           substitutabilityMap[id];
 
 
+      // ==========================================================
+      // ID MATCH 확인
+      // ==========================================================
+      //
+      // 여기서 세 지표의 결과가
+      // 동일한 hubTatsCd를 기준으로
+      // 정상적으로 연결되는지 확인한다.
+      // ==========================================================
+
+      print('');
+      print('================ ID MATCH 확인 ================');
+      print('관광지: ${spot['hubTatsNm']}');
+      print('ID: "$id"');
+
+      print(
+        'Crowding: '
+        '${crowding != null ? "MATCH" : "❌ NO MATCH"}',
+      );
+
+      print(
+        'Sensitivity: '
+        '${sensitivity != null ? "MATCH" : "❌ NO MATCH"}',
+      );
+
+      print(
+        'Substitutability: '
+        '${substitutability != null ? "MATCH" : "❌ NO MATCH"}',
+      );
+
+      print('===============================================');
+
+
       // ----------------------------------------------------------
       // 점수
       //
