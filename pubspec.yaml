@@ -52,3 +52,4 @@ flutter:
     - assets/data/region_vectors.json
     - assets/data/tourism_spots_protected.csv
     - assets/data/snob_substitutability_data.json
+    - assets/data/snob_concentration.json

@@ -1,4 +1,7 @@
-import '../../../services/congestion_service.dart';
+import 'dart:convert';
+
+import 'package:flutter/services.dart';
+
 
 // ================================================================
 // SNOB Crowding Result
@@ -35,24 +38,44 @@ Crowding 점수      : ${crowdingScore.toStringAsFixed(2)}
   }
 }
 
+
 // ================================================================
 // SNOB Crowding
 // ================================================================
 
 class SnobCrowding {
-  final CongestionService _service = CongestionService();
 
+  // ==============================================================
+  // 점수 설정
+  // ==============================================================
+
+  // Crowding 점수가 가질 수 있는 최대값
   static const double maxScore = 45.0;
 
+  // 집중률 데이터를 찾지 못했을 때 사용할 중립 점수
   static const double neutralScore = 27.5;
 
+  // 집중률 데이터를 찾지 못했을 때 사용할 기본 집중률
   static const double defaultConcentration = 50.0;
+
+
+  // ==============================================================
+  // 로컬 JSON 캐시
+  // ==============================================================
+
+  static Map<String, List<Map<String, dynamic>>>?
+      _concentrationByName;
+
+  static Map<String, List<Map<String, dynamic>>>?
+      _concentrationByRegionAndName;
+
 
   // ==============================================================
   // 이름 정규화
   // ==============================================================
 
   String _normalizeName(dynamic value) {
+
     if (value == null) {
       return '';
     }
@@ -71,6 +94,7 @@ class SnobCrowding {
         .toLowerCase();
   }
 
+
   // ==============================================================
   // 관광지 이름
   // ==============================================================
@@ -78,6 +102,7 @@ class SnobCrowding {
   String _getSpotName(
     Map<String, dynamic> spot,
   ) {
+
     final candidates = [
       spot['hubTatsNm'],
       spot['tAtsNm'],
@@ -90,8 +115,10 @@ class SnobCrowding {
     ];
 
     for (final value in candidates) {
+
       if (value != null &&
           value.toString().trim().isNotEmpty) {
+
         return value.toString().trim();
       }
     }
@@ -99,13 +126,23 @@ class SnobCrowding {
     return '';
   }
 
+
   // ==============================================================
-  // API 관광지 이름
+  // 관광지 집중률 JSON의 관광지 이름
   // ==============================================================
 
   String _getConcentrationName(
     Map<String, dynamic> data,
   ) {
+
+    // 우리가 만든 JSON 구조
+    if (data['name'] != null &&
+        data['name'].toString().trim().isNotEmpty) {
+
+      return data['name'].toString().trim();
+    }
+
+    // 혹시 다른 형태의 데이터가 들어와도 대응
     final candidates = [
       data['hubTatsNm'],
       data['tAtsNm'],
@@ -118,14 +155,17 @@ class SnobCrowding {
     ];
 
     for (final value in candidates) {
+
       if (value != null &&
           value.toString().trim().isNotEmpty) {
+
         return value.toString().trim();
       }
     }
 
     return '';
   }
+
 
   // ==============================================================
   // 집중률
@@ -134,6 +174,24 @@ class SnobCrowding {
   double? _getConcentrationRate(
     Map<String, dynamic> data,
   ) {
+
+    // 우리가 만든 JSON
+    if (data['concentration'] != null) {
+
+      final rate = double.tryParse(
+        data['concentration'].toString(),
+      );
+
+      if (rate != null &&
+          rate >= 0 &&
+          rate <= 100) {
+
+        return rate;
+      }
+    }
+
+
+    // 혹시 다른 형태의 데이터가 들어와도 대응
     final candidates = [
       data['cnctrRate'],
       data['concentrationRate'],
@@ -142,6 +200,7 @@ class SnobCrowding {
     ];
 
     for (final value in candidates) {
+
       if (value == null) {
         continue;
       }
@@ -164,36 +223,15 @@ class SnobCrowding {
     return null;
   }
 
-  // ==============================================================
-  // 지역 코드
-  // ==============================================================
-
-  String? _getAreaCode(
-    Map<String, dynamic> spot,
-  ) {
-    final candidates = [
-      spot['areaCd'],
-      spot['areaCode'],
-      spot['areacd'],
-    ];
-
-    for (final value in candidates) {
-      if (value != null &&
-          value.toString().trim().isNotEmpty) {
-        return value.toString().trim();
-      }
-    }
-
-    return null;
-  }
 
   // ==============================================================
-  // 시군구 코드
+  // 관광지 시군구 코드
   // ==============================================================
 
   String? _getSignguCode(
     Map<String, dynamic> spot,
   ) {
+
     final candidates = [
       spot['signguCd'],
       spot['sigunguCd'],
@@ -203,20 +241,33 @@ class SnobCrowding {
     ];
 
     for (final value in candidates) {
+
       if (value != null &&
           value.toString().trim().isNotEmpty) {
-        return value.toString().trim();
+
+        final code = value
+            .toString()
+            .trim();
+
+        // 5자리 시군구 코드
+        if (RegExp(r'^\d+$').hasMatch(code)) {
+          return code.padLeft(5, '0');
+        }
+
+        return code;
       }
     }
 
     return null;
   }
 
+
   // ==============================================================
   // 문자열 유사도용 정규화
   // ==============================================================
 
   String _cleanName(String name) {
+
     return _normalizeName(name)
         .replaceAll('관광지', '')
         .replaceAll('문화관광', '')
@@ -224,28 +275,287 @@ class SnobCrowding {
         .replaceAll('공원', '');
   }
 
+
   // ==============================================================
-  // 이름 매칭
-  // ==============================================================
-  //
-  // 우선순위
-  //
-  // 1. 완전히 동일
-  // 2. 한쪽 이름이 다른 쪽에 포함
-  // 3. 핵심 이름 포함
-  //
+  // JSON 로드
   // ==============================================================
 
-  List<double>? _findRatesByName(
+  Future<void> _loadConcentrationData() async {
+
+    // 이미 불러왔으면 다시 읽지 않는다.
+    if (_concentrationByName != null &&
+        _concentrationByRegionAndName != null) {
+
+      return;
+    }
+
+
+    print('');
+    print('============================================================');
+    print('📂 SNOB 관광지 집중률 JSON 로드');
+    print('============================================================');
+
+
+    try {
+
+      final jsonString = await rootBundle.loadString(
+        'assets/data/snob_concentration.json',
+      );
+
+
+      final decoded = jsonDecode(
+        jsonString,
+      );
+
+
+      if (decoded is! Map<String, dynamic>) {
+
+        throw Exception(
+          'snob_concentration.json 형식이 올바르지 않습니다.',
+        );
+      }
+
+
+      final records = decoded['records'];
+
+
+      if (records is! List) {
+
+        throw Exception(
+          'JSON에 records가 없습니다.',
+        );
+      }
+
+
+      final byName =
+          <String, List<Map<String, dynamic>>>{};
+
+      final byRegionAndName =
+          <String, List<Map<String, dynamic>>>{};
+
+
+      for (final item in records) {
+
+        if (item is! Map) {
+          continue;
+        }
+
+
+        final data =
+            Map<String, dynamic>.from(item);
+
+
+        final name =
+            _normalizeName(
+          data['normalizedName'] ??
+              _getConcentrationName(data),
+        );
+
+
+        if (name.isEmpty) {
+          continue;
+        }
+
+
+        // ----------------------------------------------------------
+        // 이름 기준 Map
+        // ----------------------------------------------------------
+
+        byName
+            .putIfAbsent(
+              name,
+              () => <Map<String, dynamic>>[],
+            )
+            .add(data);
+
+
+        // ----------------------------------------------------------
+        // 시군구 + 이름 기준 Map
+        // ----------------------------------------------------------
+
+        final rawCode =
+            data['sigunguCode'];
+
+
+        if (rawCode != null &&
+            rawCode.toString().trim().isNotEmpty) {
+
+          final code =
+              rawCode.toString().trim();
+
+
+          final regionKey =
+              '$code|$name';
+
+
+          byRegionAndName
+              .putIfAbsent(
+                regionKey,
+                () => <Map<String, dynamic>>[],
+              )
+              .add(data);
+        }
+      }
+
+
+      _concentrationByName =
+          byName;
+
+      _concentrationByRegionAndName =
+          byRegionAndName;
+
+
+      print(
+        '✅ JSON 로드 성공',
+      );
+
+      print(
+        '전체 관광지 이름 수 : '
+        '${byName.length}',
+      );
+
+      print(
+        '지역 + 관광지 이름 수 : '
+        '${byRegionAndName.length}',
+      );
+
+      print(
+        '전체 JSON records : '
+        '${records.length}',
+      );
+
+      print(
+        '============================================================',
+      );
+    }
+
+    catch (e) {
+
+      print('');
+      print(
+        '❌ 관광지 집중률 JSON 로드 실패',
+      );
+
+      print(e);
+
+      print(
+        '============================================================',
+      );
+
+
+      // 실패하면 빈 Map을 넣어 이후 코드에서
+      // null 오류가 발생하지 않도록 한다.
+      _concentrationByName =
+          <String, List<Map<String, dynamic>>>{};
+
+      _concentrationByRegionAndName =
+          <String, List<Map<String, dynamic>>>{};
+    }
+  }
+
+
+  // ==============================================================
+  // 지역 + 이름으로 매칭
+  // ==============================================================
+
+  List<double>? _findRatesByRegionAndName(
     String spotName,
-    Map<String, List<double>> concentrationByName,
+    String? signguCode,
   ) {
+
+    if (signguCode == null ||
+        signguCode.isEmpty) {
+
+      return null;
+    }
+
+
     final normalizedSpotName =
         _normalizeName(spotName);
+
 
     if (normalizedSpotName.isEmpty) {
       return null;
     }
+
+
+    final key =
+        '$signguCode|$normalizedSpotName';
+
+
+    final dataList =
+        _concentrationByRegionAndName?[key];
+
+
+    if (dataList == null ||
+        dataList.isEmpty) {
+
+      return null;
+    }
+
+
+    final rates = <double>[];
+
+
+    for (final data in dataList) {
+
+      final rate =
+          _getConcentrationRate(data);
+
+      if (rate != null) {
+        rates.add(rate);
+      }
+    }
+
+
+    if (rates.isEmpty) {
+      return null;
+    }
+
+
+    print('✅ 지역 + 이름 정확히 일치');
+    print('시군구코드 : $signguCode');
+    print('관광지     : $normalizedSpotName');
+
+    return rates;
+  }
+
+
+  // ==============================================================
+  // 이름으로 매칭
+  // ==============================================================
+  //
+  // 우선순위
+  //
+  // 1. 정확히 일치
+  // 2. 부분 문자열
+  // 3. 핵심 이름 비교
+  //
+  // 단, 같은 이름이 여러 지역에 존재하면
+  // 이름만으로 매칭하지 않는다.
+  // ==============================================================
+
+  List<double>? _findRatesByName(
+    String spotName,
+  ) {
+
+    final concentrationByName =
+        _concentrationByName;
+
+
+    if (concentrationByName == null) {
+      return null;
+    }
+
+
+    final normalizedSpotName =
+        _normalizeName(spotName);
+
+
+    if (normalizedSpotName.isEmpty) {
+      return null;
+    }
+
 
     // ------------------------------------------------------------
     // 1. 정확히 일치
@@ -254,27 +564,146 @@ class SnobCrowding {
     final exact =
         concentrationByName[normalizedSpotName];
 
-    if (exact != null && exact.isNotEmpty) {
-      print('✅ 이름 정확히 일치');
-      return exact;
+
+    if (exact != null &&
+        exact.isNotEmpty) {
+
+      // 같은 관광지명이 여러 시군구에 있으면
+      // 이름만으로 어느 지역인지 알 수 없으므로 사용하지 않는다.
+      final regionCodes = exact
+          .map(
+            (data) =>
+                data['sigunguCode']
+                    ?.toString()
+                    .trim(),
+          )
+          .where(
+            (code) =>
+                code != null &&
+                code.isNotEmpty,
+          )
+          .toSet();
+
+
+      if (regionCodes.length == 1) {
+
+        final rates = <double>[];
+
+        for (final data in exact) {
+
+          final rate =
+              _getConcentrationRate(data);
+
+          if (rate != null) {
+            rates.add(rate);
+          }
+        }
+
+
+        if (rates.isNotEmpty) {
+
+          print('✅ 이름 정확히 일치');
+          print(
+            '관광지 : $normalizedSpotName',
+          );
+
+          return rates;
+        }
+      }
+
+      else {
+
+        print('');
+        print(
+          '⚠️ 같은 관광지명이 여러 지역에 존재합니다.',
+        );
+
+        print(
+          '이름만으로 매칭하지 않습니다.',
+        );
+      }
     }
+
 
     // ------------------------------------------------------------
     // 2. 부분 문자열
     // ------------------------------------------------------------
 
-    for (final entry in concentrationByName.entries) {
-      final apiName = entry.key;
+    MapEntry<String, List<Map<String, dynamic>>>?
+        partialMatch;
 
-      if (apiName.contains(normalizedSpotName) ||
-          normalizedSpotName.contains(apiName)) {
-        print('✅ 이름 부분 일치');
-        print('CENTER50 : $normalizedSpotName');
-        print('API      : $apiName');
 
-        return entry.value;
+    for (final entry
+        in concentrationByName.entries) {
+
+      final dataName = entry.key;
+
+
+      if (dataName.contains(
+            normalizedSpotName,
+          ) ||
+          normalizedSpotName.contains(
+            dataName,
+          )) {
+
+        // 여러 지역에 존재하는 이름이면 제외
+        final regionCodes = entry.value
+            .map(
+              (data) =>
+                  data['sigunguCode']
+                      ?.toString()
+                      .trim(),
+            )
+            .where(
+              (code) =>
+                  code != null &&
+                  code.isNotEmpty,
+            )
+            .toSet();
+
+
+        if (regionCodes.length == 1) {
+
+          partialMatch = entry;
+
+          break;
+        }
       }
     }
+
+
+    if (partialMatch != null) {
+
+      final rates = <double>[];
+
+
+      for (final data in partialMatch.value) {
+
+        final rate =
+            _getConcentrationRate(data);
+
+        if (rate != null) {
+          rates.add(rate);
+        }
+      }
+
+
+      if (rates.isNotEmpty) {
+
+        print('✅ 이름 부분 일치');
+
+        print(
+          'CENTER50 : $normalizedSpotName',
+        );
+
+        print(
+          'JSON     : ${partialMatch.key}',
+        );
+
+        return rates;
+      }
+    }
+
 
     // ------------------------------------------------------------
     // 3. 핵심 이름 비교
@@ -283,28 +712,108 @@ class SnobCrowding {
     final cleanSpotName =
         _cleanName(spotName);
 
+
     if (cleanSpotName.isNotEmpty) {
-      for (final entry in concentrationByName.entries) {
-        final cleanApiName =
+
+      for (final entry
+          in concentrationByName.entries) {
+
+        final cleanJsonName =
             _cleanName(entry.key);
 
-        if (cleanApiName.isEmpty) {
+
+        if (cleanJsonName.isEmpty) {
           continue;
         }
 
-        if (cleanApiName.contains(cleanSpotName) ||
-            cleanSpotName.contains(cleanApiName)) {
-          print('✅ 핵심 이름 일치');
-          print('CENTER50 : $cleanSpotName');
-          print('API      : $cleanApiName');
 
-          return entry.value;
+        if (cleanJsonName.contains(
+              cleanSpotName,
+            ) ||
+            cleanSpotName.contains(
+              cleanJsonName,
+            )) {
+
+          final regionCodes = entry.value
+              .map(
+                (data) =>
+                    data['sigunguCode']
+                        ?.toString()
+                        .trim(),
+              )
+              .where(
+                (code) =>
+                    code != null &&
+                    code.isNotEmpty,
+              )
+              .toSet();
+
+
+          // 지역이 하나인 경우에만 사용
+          if (regionCodes.length != 1) {
+            continue;
+          }
+
+
+          final rates = <double>[];
+
+
+          for (final data in entry.value) {
+
+            final rate =
+                _getConcentrationRate(data);
+
+            if (rate != null) {
+              rates.add(rate);
+            }
+          }
+
+
+          if (rates.isNotEmpty) {
+
+            print('✅ 핵심 이름 일치');
+
+            print(
+              'CENTER50 : $cleanSpotName',
+            );
+
+            print(
+              'JSON     : $cleanJsonName',
+            );
+
+            return rates;
+          }
         }
       }
     }
 
+
     return null;
   }
+
+
+  // ==============================================================
+  // 집중률 → Crowding 점수
+  // ==============================================================
+
+  double _calculateCrowdingScore(
+    double concentration,
+  ) {
+
+    double score =
+        (100.0 - concentration) *
+            0.45;
+
+
+    score = score.clamp(
+      0.0,
+      maxScore,
+    );
+
+
+    return score;
+  }
+
 
   // ==============================================================
   // Crowding 계산
@@ -313,203 +822,152 @@ class SnobCrowding {
   Future<List<SnobCrowdingResult>> calculate(
     List<Map<String, dynamic>> spots,
   ) async {
-    final results = <SnobCrowdingResult>[];
+
+    final results =
+        <SnobCrowdingResult>[];
+
+
+    // ============================================================
+    // 관광지 목록 확인
+    // ============================================================
 
     if (spots.isEmpty) {
+
       print('');
       print('❌ SNOB CROWDING');
       print('관광지 목록이 비어있습니다.');
-      return results;
-    }
-
-    // ============================================================
-    // 지역 코드
-    // ============================================================
-
-    final firstSpot = spots.first;
-
-    final areaCd = _getAreaCode(firstSpot);
-
-    final signguCd = _getSignguCode(firstSpot);
-
-    if (areaCd == null ||
-        signguCd == null ||
-        areaCd.isEmpty ||
-        signguCd.isEmpty) {
-      print('');
-      print('❌ SNOB CROWDING 계산 실패');
-      print('지역 코드가 없습니다.');
-      print('areaCd   : $areaCd');
-      print('signguCd : $signguCd');
-      print(firstSpot);
 
       return results;
     }
 
-    // ============================================================
-    // API 호출
-    // ============================================================
-
-    List<Map<String, dynamic>> concentrationData = [];
-
-    try {
-      concentrationData =
-          await _service.getCongestion(
-        areaCd: areaCd,
-        signguCd: signguCd,
-      );
-    } catch (e) {
-      print('');
-      print('❌ 관광지 집중률 API 호출 실패');
-      print(e);
-    }
 
     // ============================================================
-    // API 결과
+    // JSON 로드
+    // ============================================================
+
+    await _loadConcentrationData();
+
+
+    // ============================================================
+    // 데이터 확인
     // ============================================================
 
     print('');
     print('============================================================');
-    print('📡 집중률 API 결과');
-    print('============================================================');
-    print('areaCd   = "$areaCd"');
-    print('signguCd = "$signguCd"');
-    print(
-      'API 데이터 수 = ${concentrationData.length}',
-    );
-    print('============================================================');
-
-    // ============================================================
-    // CENTER50 관광지
-    // ============================================================
-
-    print('');
-    print('============================================================');
-    print('🔎 CENTER50 관광지');
-    print('============================================================');
-
-    for (final spot in spots) {
-      final name = _getSpotName(spot);
-
-      print(
-        'CENTER50 : "$name"',
-      );
-    }
-
-    // ============================================================
-    // API 관광지
-    // ============================================================
-
-    print('');
-    print('============================================================');
-    print('🔎 집중률 API 관광지');
-    print('============================================================');
-
-    for (final data in concentrationData) {
-      print(
-        'API : "${_getConcentrationName(data)}" '
-        '| 집중률 : ${_getConcentrationRate(data)} '
-        '| 날짜 : ${data['baseYmd']}',
-      );
-    }
-
-    // ============================================================
-    // 이름 Map
-    // ============================================================
-
-    final Map<String, List<double>>
-        concentrationByName = {};
-
-    for (final data in concentrationData) {
-      final rate =
-          _getConcentrationRate(data);
-
-      if (rate == null) {
-        continue;
-      }
-
-      final name =
-          _normalizeName(
-        _getConcentrationName(data),
-      );
-
-      if (name.isEmpty) {
-        continue;
-      }
-
-      concentrationByName
-          .putIfAbsent(
-            name,
-            () => <double>[],
-          )
-          .add(rate);
-    }
-
-    // ============================================================
-    // Map 확인
-    // ============================================================
-
-    print('');
-    print('============================================================');
-    print('📊 이름 기반 집중률 데이터');
+    print('📊 SNOB CROWDING');
     print('============================================================');
 
     print(
-      'API 관광지 이름 수 = '
-      '${concentrationByName.length}',
+      'CENTER50 관광지 수 : ${spots.length}',
     );
 
-    for (final name
-        in concentrationByName.keys.take(20)) {
-      print(
-        'API 이름 : "$name"',
-      );
-    }
+    print(
+      '로컬 집중률 데이터 : '
+      '${_concentrationByName?.length ?? 0}',
+    );
 
     print('============================================================');
+
 
     // ============================================================
     // 관광지별 계산
     // ============================================================
 
     for (final spot in spots) {
+
       final spotName =
           _getSpotName(spot);
 
+
       final normalizedSpotName =
           _normalizeName(spotName);
+
+
+      final signguCode =
+          _getSignguCode(spot);
+
 
       print('');
       print('============================================================');
       print('🎯 SNOB CROWDING 계산');
       print('============================================================');
-      print('CENTER50 관광지 : "$spotName"');
-      print('정규화 이름     : "$normalizedSpotName"');
+
+      print(
+        'CENTER50 관광지 : "$spotName"',
+      );
+
+      print(
+        '정규화 이름     : "$normalizedSpotName"',
+      );
+
+      print(
+        '시군구 코드     : "$signguCode"',
+      );
+
       print('============================================================');
+
+
+      // ----------------------------------------------------------
+      // 기본값
+      // ----------------------------------------------------------
 
       double averageConcentration =
           defaultConcentration;
 
+
       double crowdingScore =
           neutralScore;
 
+
       List<double>? matchedRates;
 
-      String matchMethod = '중립값';
+
+      String matchMethod =
+          '중립값';
+
 
       // ==========================================================
-      // 이름으로 매칭
+      // 1순위
+      // 지역 코드 + 관광지명
       // ==========================================================
 
-      matchedRates = _findRatesByName(
+      matchedRates =
+          _findRatesByRegionAndName(
         spotName,
-        concentrationByName,
+        signguCode,
       );
+
 
       if (matchedRates != null &&
           matchedRates.isNotEmpty) {
-        matchMethod = '이름';
+
+        matchMethod =
+            '시군구코드 + 이름';
       }
+
+
+      // ==========================================================
+      // 2순위
+      // 이름만
+      // ==========================================================
+
+      if (matchedRates == null ||
+          matchedRates.isEmpty) {
+
+        matchedRates =
+            _findRatesByName(
+          spotName,
+        );
+
+
+        if (matchedRates != null &&
+            matchedRates.isNotEmpty) {
+
+          matchMethod =
+              '이름';
+        }
+      }
+
 
       // ==========================================================
       // 매칭 성공
@@ -517,26 +975,35 @@ class SnobCrowding {
 
       if (matchedRates != null &&
           matchedRates.isNotEmpty) {
+
+        // 여러 값이 있을 경우 평균
         averageConcentration =
             matchedRates.reduce(
                   (a, b) => a + b,
                 ) /
                 matchedRates.length;
 
-        crowdingScore =
-            (100.0 - averageConcentration) *
-                0.45;
 
+        // 집중률 → Crowding
         crowdingScore =
-            crowdingScore.clamp(
-          0.0,
-          maxScore,
+            _calculateCrowdingScore(
+          averageConcentration,
         );
 
+
         print('');
-        print('✅ 집중률 데이터 매칭 성공');
-        print('매칭 방식 : $matchMethod');
-        print('관광지    : "$spotName"');
+        print(
+          '✅ 집중률 데이터 매칭 성공',
+        );
+
+        print(
+          '매칭 방식 : $matchMethod',
+        );
+
+        print(
+          '관광지    : "$spotName"',
+        );
+
         print(
           '집중률 데이터 개수 : '
           '${matchedRates.length}',
@@ -560,13 +1027,17 @@ class SnobCrowding {
         );
       }
 
+
       // ==========================================================
       // 매칭 실패
       // ==========================================================
 
       else {
+
         print('');
-        print('❌ 집중률 데이터 매칭 실패');
+        print(
+          '❌ 집중률 데이터 매칭 실패',
+        );
 
         print(
           'CENTER50 이름 : "$spotName"',
@@ -576,58 +1047,25 @@ class SnobCrowding {
           '정규화 이름 : "$normalizedSpotName"',
         );
 
-        print('');
-        print('🔍 가장 비슷한 API 이름');
+        print(
+          '시군구 코드 : "$signguCode"',
+        );
 
-        final similarNames =
-            concentrationByName.keys
-                .where(
-                  (name) {
-                    final cleanApi =
-                        _cleanName(name);
-
-                    final cleanSpot =
-                        _cleanName(spotName);
-
-                    return name.contains(
-                          normalizedSpotName,
-                        ) ||
-                        normalizedSpotName.contains(
-                          name,
-                        ) ||
-                        (cleanSpot.isNotEmpty &&
-                            (cleanApi.contains(
-                                  cleanSpot,
-                                ) ||
-                                cleanSpot.contains(
-                                  cleanApi,
-                                )));
-                  },
-                )
-                .take(10)
-                .toList();
-
-        if (similarNames.isEmpty) {
-          print(
-            '비슷한 이름도 찾지 못했습니다.',
-          );
-        } else {
-          for (final name in similarNames) {
-            print(
-              '  → "$name"',
-            );
-          }
-        }
 
         print('');
-        print('⚠️ 중립값 적용');
+        print(
+          '⚠️ 중립값 적용',
+        );
+
         print(
           '집중률 = $defaultConcentration',
         );
+
         print(
           'Crowding = $neutralScore',
         );
       }
+
 
       // ==========================================================
       // 결과 저장
@@ -636,13 +1074,16 @@ class SnobCrowding {
       results.add(
         SnobCrowdingResult(
           spot: spot,
+
           averageConcentration:
               averageConcentration,
+
           crowdingScore:
               crowdingScore,
         ),
       );
     }
+
 
     // ============================================================
     // 종료
@@ -651,10 +1092,14 @@ class SnobCrowding {
     print('');
     print('============================================================');
     print('🏁 SNOB CROWDING 종료');
+    print('============================================================');
+
     print(
       '최종 관광지 수 : ${results.length}',
     );
+
     print('============================================================');
+
 
     return results;
   }
