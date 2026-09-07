@@ -7,6 +7,7 @@ import '../../../services/congestion_service.dart';
 import '../../../region_mapping/region_mapping_service.dart';
 import '../../../region_mapping/spot_mapping_service.dart';
 import '../../../region_mapping/snob_spot.dart';
+import '../../../snob/tourism_spot.dart';
 import 'snob_final.dart';
 
 
