@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-
-import '../course/center50.dart';
+import '../course/result_screen.dart';
 import 'personality_test_screen.dart';
 
 class ResultScreen extends StatelessWidget {
@@ -96,7 +95,7 @@ class ResultScreen extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => Center50Screen(
+        builder: (_) => CourseResultScreen(
           regionName: region,
         ),
       ),

@@ -1,26 +1,57 @@
 import 'package:flutter/material.dart';
 
-import 'snob_final.dart';
 import '../../../models/travel_plan.dart';
 import '../../../services/travel_plan_storage.dart';
+import '../../../services/tourism_api_service.dart';
+import '../../../services/congestion_service.dart';
+import '../../../region_mapping/region_mapping_service.dart';
+import '../../../region_mapping/spot_mapping_service.dart';
+import '../../../region_mapping/snob_spot.dart';
+import 'snob_final.dart';
+
+
+// ================================================================
+// Course Result Screen
+// ================================================================
 
 class CourseResultScreen extends StatefulWidget {
+  // ============================================================
   // 추천 지역명
-  final String regionName;
+  // ============================================================
 
-  // center50.dart에서 가져온 관광지 50개
-  final List<Map<String, dynamic>> spots;
+  final String regionName;
 
   const CourseResultScreen({
     super.key,
     required this.regionName,
-    required this.spots,
   });
 
   @override
   State<CourseResultScreen> createState() =>
       _CourseResultScreenState();
 }
+
+
+// ================================================================
+// 관광지 결과
+// ================================================================
+
+class CourseResultData {
+  final Map<String, dynamic> spot;
+  final double averageConcentration;
+  final double snobScore;
+
+  const CourseResultData({
+    required this.spot,
+    required this.averageConcentration,
+    required this.snobScore,
+  });
+}
+
+
+// ================================================================
+// State
+// ================================================================
 
 class _CourseResultScreenState
     extends State<CourseResultScreen> {
@@ -33,7 +64,7 @@ class _CourseResultScreenState
 
   String? errorMessage;
 
-  List<SnobFinalResult> results = [];
+  List<CourseResultData> results = [];
 
   // ============================================================
   // 여행 일정
@@ -41,14 +72,16 @@ class _CourseResultScreenState
 
   late TravelPlan travelPlan;
 
+
+  // ============================================================
+  // initState
+  // ============================================================
+
   @override
   void initState() {
     super.initState();
 
     // 기본 여행 일정 생성
-    //
-    // 현재 TravelPlan.create()는 dayCount를 받지 않으므로
-    // regionName만 전달한다.
     travelPlan = TravelPlan.create(
       regionName: widget.regionName,
     );
@@ -56,9 +89,10 @@ class _CourseResultScreenState
     // 저장된 일정 불러오기
     _initializeTravelPlan();
 
-    // SNOB 계산
+    // 관광지 조회 → 집중률 매핑 → SNOB 계산
     _calculateSnob();
   }
+
 
   // ============================================================
   // 저장된 여행 일정 불러오기
@@ -69,10 +103,13 @@ class _CourseResultScreenState
       final savedPlan =
           await TravelPlanStorage.loadTravelPlan();
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       if (savedPlan != null &&
-          savedPlan.regionName == widget.regionName) {
+          savedPlan.regionName ==
+              widget.regionName) {
         setState(() {
           travelPlan = savedPlan;
         });
@@ -98,339 +135,1100 @@ class _CourseResultScreenState
     }
   }
 
+
   // ============================================================
-  // SNOB 계산
+  // 전체 SNOB 계산
+  // ============================================================
   //
-  // center50
-  //     ↓
-  // SnobCongestion
-  //     ↓
-  // 30일 평균 혼잡도
-  //     ↓
-  // SNOB 점수
-  //     ↓
-  // 높은 SNOB 점수 순
+  // 지역명
+  // ↓
+  // TourAPI 현재 지역 코드 찾기
+  // ↓
+  // 해당 지역 관광지 전체 조회
+  // ↓
+  // 집중률 API 지역 코드 매핑
+  // ↓
+  // 집중률 데이터 조회
+  // ↓
+  // 관광지명 매칭
+  // ↓
+  // SnobFinal
+  // ↓
+  // 최종 SNOB 점수
+  //
+  // 중요:
+  // 집중률 매칭에 실패한 관광지도 삭제하지 않는다.
   // ============================================================
 
   Future<void> _calculateSnob() async {
     try {
       debugPrint('');
-      debugPrint('========================================');
-      debugPrint('COURSE RESULT 시작');
-      debugPrint('추천 지역: ${widget.regionName}');
-      debugPrint('관광지 수: ${widget.spots.length}');
-      debugPrint('========================================');
-
-      final calculator = SnobFinal();
-
-      final calculatedResults =
-          await calculator.calculate(widget.spots);
-
-      if (!mounted) return;
-
-      setState(() {
-        results = calculatedResults;
-        isLoading = false;
-      });
-
-      debugPrint('');
-      debugPrint('========================================');
-      debugPrint('SNOB 계산 완료');
       debugPrint(
-        '결과 수: ${calculatedResults.length}',
+        '========================================',
       );
-      debugPrint('========================================');
+      debugPrint(
+        'COURSE RESULT 시작',
+      );
+      debugPrint(
+        '추천 지역: ${widget.regionName}',
+      );
+      debugPrint(
+        '========================================',
+      );
 
-      for (int i = 0;
-          i < calculatedResults.length;
-          i++) {
-        final result = calculatedResults[i];
 
-        debugPrint('');
-        debugPrint(
-          '[${i + 1}] '
-          '${result.spot['hubTatsNm']}',
+      // ==========================================================
+      // 1. TourAPI 시도 코드 조회
+      // ==========================================================
+
+      final List<Map<String, String>> regions =
+          await TourismApiService.getRegions();
+
+      Map<String, String>? selectedRegion;
+      String? selectedSigunguCode;
+      String? selectedSigunguName;
+
+
+      // ==========================================================
+      // 2. 추천 지역 찾기
+      // ==========================================================
+
+      for (final region in regions) {
+        final String regionCode =
+            region['code'] ?? '';
+
+        final String regionName =
+            region['name'] ?? '';
+
+
+        // --------------------------------------------------------
+        // 시도 자체인 경우
+        // --------------------------------------------------------
+
+        if (widget.regionName ==
+            regionName) {
+          selectedRegion = region;
+          break;
+        }
+
+
+        // --------------------------------------------------------
+        // 시도 + 시군구인 경우
+        //
+        // 예:
+        // 서울특별시 성동구
+        // --------------------------------------------------------
+
+        if (!widget.regionName
+            .startsWith('$regionName ')) {
+          continue;
+        }
+
+        final String sigunguName =
+            widget.regionName
+                .substring(
+                  regionName.length,
+                )
+                .trim();
+
+
+        final List<Map<String, String>>
+            sigungus =
+            await TourismApiService
+                .getSigungus(
+          regionCode,
         );
 
-        debugPrint(
-          '30일 평균 혼잡도: '
-          '${result.averageCongestion.toStringAsFixed(2)}',
-        );
 
-        debugPrint(
-          'SNOB 점수: '
-          '${result.totalScore.toStringAsFixed(2)}',
+        for (final sigungu in sigungus) {
+          final String currentName =
+              sigungu['name'] ?? '';
+
+          if (currentName ==
+              sigunguName) {
+            selectedRegion = region;
+
+            selectedSigunguCode =
+                sigungu['code'];
+
+            selectedSigunguName =
+                sigungu['name'];
+
+            break;
+          }
+        }
+
+
+        if (selectedRegion != null) {
+          break;
+        }
+      }
+
+
+      // ==========================================================
+      // 지역을 찾지 못한 경우
+      // ==========================================================
+
+      if (selectedRegion == null) {
+        throw Exception(
+          '추천 지역의 TourAPI 지역 코드를 '
+          '찾을 수 없습니다.\n'
+          '지역: ${widget.regionName}',
         );
       }
 
-      debugPrint('');
-      debugPrint('========================================');
-      debugPrint('COURSE RESULT 종료');
-      debugPrint('========================================');
-    } catch (e) {
-      debugPrint('');
-      debugPrint('========================================');
-      debugPrint('COURSE RESULT 오류');
-      debugPrint(e.toString());
-      debugPrint('========================================');
 
-      if (!mounted) return;
+      final String regionCode =
+          selectedRegion['code']!;
+
+
+      // ==========================================================
+      // 세종특별자치시 예외
+      // ==========================================================
+
+      if (selectedSigunguCode == null) {
+        final List<Map<String, String>>
+            sigungus =
+            await TourismApiService
+                .getSigungus(
+          regionCode,
+        );
+
+
+        if (sigungus.isNotEmpty) {
+          selectedSigunguCode =
+              sigungus.first['code'];
+
+          selectedSigunguName =
+              sigungus.first['name'];
+        }
+      }
+
+
+      if (selectedSigunguCode == null) {
+        throw Exception(
+          '추천 지역의 시군구 코드를 '
+          '찾을 수 없습니다.\n'
+          '지역: ${widget.regionName}',
+        );
+      }
+
+
+      debugPrint('');
+      debugPrint(
+        '========================================',
+      );
+      debugPrint(
+        '현재 TourAPI 지역',
+      );
+      debugPrint(
+        '========================================',
+      );
+      debugPrint(
+        '지역 코드: $regionCode',
+      );
+      debugPrint(
+        '시군구 코드: $selectedSigunguCode',
+      );
+      debugPrint(
+        '시군구 이름: $selectedSigunguName',
+      );
+
+
+      // ==========================================================
+      // 3. 관광지 전체 조회
+      // ==========================================================
+      //
+      // CENTER50 사용하지 않음
+      // ==========================================================
+
+      final List<TourismSpot> tourismSpots =
+          await TourismApiService
+              .getTourismSpotsByLegalDong(
+        regionCode,
+        selectedSigunguCode!,
+        widget.regionName,
+      );
+
+
+      debugPrint('');
+      debugPrint(
+        '========================================',
+      );
+      debugPrint(
+        'TourAPI 관광지 조회 완료',
+      );
+      debugPrint(
+        '관광지 수: ${tourismSpots.length}',
+      );
+      debugPrint(
+        '========================================',
+      );
+
+
+      if (tourismSpots.isEmpty) {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          results = [];
+          isLoading = false;
+        });
+
+        return;
+      }
+
+
+      // ==========================================================
+      // 4. 집중률 API 지역 매핑
+      // ==========================================================
+
+      final List<RegionQuery> regionQueries =
+          RegionMappingService
+              .getQueryRegions(
+        regionCode: regionCode,
+        sigunguCode: selectedSigunguCode!,
+        regionName: widget.regionName,
+      );
+
+
+      if (regionQueries.isEmpty) {
+        throw Exception(
+          '집중률 API 지역 매핑 결과가 없습니다.\n'
+          '지역: ${widget.regionName}',
+        );
+      }
+
+
+      debugPrint('');
+      debugPrint(
+        '========================================',
+      );
+      debugPrint(
+        '집중률 API 지역 매핑',
+      );
+      debugPrint(
+        '========================================',
+      );
+
+
+      for (final query
+          in regionQueries) {
+        debugPrint(
+          'areaCd: ${query.areaCd} '
+          '| signguCd: ${query.signguCd}',
+        );
+
+        debugPrint(
+          '이유: ${query.reason}',
+        );
+      }
+
+
+      // ==========================================================
+      // 5. 집중률 API 조회
+      // ==========================================================
+
+      final CongestionService
+          congestionService =
+          CongestionService();
+
+      final List<Map<String, dynamic>>
+          allCongestionData = [];
+
+      final Set<String>
+          queriedRegions = {};
+
+
+      for (final query
+          in regionQueries) {
+        final String key =
+            '${query.areaCd}|'
+            '${query.signguCd}';
+
+
+        // 같은 집중률 API 지역은
+        // 한 번만 조회
+        if (queriedRegions
+            .contains(key)) {
+          continue;
+        }
+
+
+        queriedRegions.add(key);
+
+
+        final List<Map<String, dynamic>>
+            data =
+            await congestionService
+                .getAllCongestion(
+          areaCd:
+              query.areaCd,
+          signguCd:
+              query.signguCd,
+        );
+
+
+        allCongestionData
+            .addAll(data);
+
+
+        debugPrint(
+          '집중률 데이터 추가: '
+          '$key → ${data.length}개',
+        );
+      }
+
+
+      debugPrint('');
+      debugPrint(
+        '========================================',
+      );
+      debugPrint(
+        '집중률 API 조회 완료',
+      );
+      debugPrint(
+        '전체 집중률 데이터: '
+        '${allCongestionData.length}개',
+      );
+      debugPrint(
+        '========================================',
+      );
+
+
+      // ==========================================================
+      // 6. 관광지 ↔ 집중률 매핑
+      // ==========================================================
+      //
+      // 여기서 핵심:
+      //
+      // 매칭 성공 → 실제 집중률 사용
+      //
+      // 매칭 실패 → 관광지 유지
+      //             concentrationRate = null
+      //
+      // 즉 관광지를 삭제하지 않는다.
+      // ==========================================================
+
+      final List<SnobSpot>
+          mappedSpots =
+          SpotMappingService.mapSpots(
+        tourismSpots:
+            tourismSpots,
+        congestionData:
+            allCongestionData,
+      );
+
+
+      debugPrint('');
+      debugPrint(
+        '========================================',
+      );
+      debugPrint(
+        '관광지 매핑 완료',
+      );
+      debugPrint(
+        '전체 관광지: '
+        '${mappedSpots.length}개',
+      );
+
+
+      final int matchedCount =
+          mappedSpots
+              .where(
+                (spot) =>
+                    spot.concentrationRate !=
+                    null,
+              )
+              .length;
+
+
+      final int unmatchedCount =
+          mappedSpots.length -
+              matchedCount;
+
+
+      debugPrint(
+        '집중률 매칭 성공: '
+        '$matchedCount개',
+      );
+
+      debugPrint(
+        '집중률 매칭 실패: '
+        '$unmatchedCount개',
+      );
+
+      debugPrint(
+        '========================================',
+      );
+
+
+      // ==========================================================
+      // 7. SnobSpot → Map 변환
+      // ==========================================================
+      //
+      // Sensitivity / Substitutability가
+      // 기존 파일 기반이므로 기존 필드명도
+      // 함께 전달한다.
+      // ==========================================================
+
+      final List<Map<String, dynamic>>
+          spotMaps =
+          mappedSpots.map(
+        (SnobSpot spot) {
+          return {
+            // ----------------------------------------------------
+            // 새 구조
+            // ----------------------------------------------------
+
+            'contentId':
+                spot.contentId,
+
+            'title':
+                spot.title,
+
+            'address':
+                spot.address,
+
+            'contentTypeId':
+                spot.contentTypeId,
+
+            'lDongRegnCd':
+                spot.lDongRegnCd,
+
+            'lDongSignguCd':
+                spot.lDongSignguCd,
+
+            'regionName':
+                spot.regionName,
+
+            'lclsSystm1':
+                spot.lclsSystm1,
+
+            'lclsSystm2':
+                spot.lclsSystm2,
+
+            'lclsSystm3':
+                spot.lclsSystm3,
+
+            'modifiedTime':
+                spot.modifiedTime,
+
+            'latitude':
+                spot.latitude,
+
+            'longitude':
+                spot.longitude,
+
+            'concentrationRate':
+                spot.concentrationRate,
+
+            'concentrationBaseYmd':
+                spot.concentrationBaseYmd,
+
+            'concentrationAreaCd':
+                spot.concentrationAreaCd,
+
+            'concentrationAreaNm':
+                spot.concentrationAreaNm,
+
+            'concentrationSignguCd':
+                spot.concentrationSignguCd,
+
+            'concentrationSignguNm':
+                spot.concentrationSignguNm,
+
+            'snobScore':
+                spot.snobScore,
+
+            // ----------------------------------------------------
+            // 기존 파일 호환
+            // ----------------------------------------------------
+
+            'hubTatsNm':
+                spot.title,
+
+            'hubCtgryMclsNm':
+                spot.lclsSystm2,
+
+            'signguCd':
+                spot.lDongSignguCd,
+
+            'sigunguCd':
+                spot.lDongSignguCd,
+
+            'signguNm':
+                spot.concentrationSignguNm,
+          };
+        },
+      ).toList();
+
+
+      // ==========================================================
+      // 8. 최종 SNOB 계산
+      // ==========================================================
+
+      final SnobFinal calculator =
+          SnobFinal();
+
+
+      final List<SnobFinalResult>
+          calculatedResults =
+          await calculator.calculate(
+        spotMaps,
+      );
+
+
+      if (!mounted) {
+        return;
+      }
+
+
+      // ==========================================================
+      // 9. 화면 결과로 변환
+      // ==========================================================
+
+      final List<CourseResultData>
+          finalResults =
+          calculatedResults.map(
+        (result) {
+          return CourseResultData(
+            spot: result.spot,
+            averageConcentration:
+                result.averageConcentration,
+            snobScore:
+                result.totalScore,
+          );
+        },
+      ).toList();
+
 
       setState(() {
-        errorMessage = e.toString();
+        results = finalResults;
+        isLoading = false;
+      });
+
+
+      // ==========================================================
+      // 10. 최종 로그
+      // ==========================================================
+
+      debugPrint('');
+      debugPrint(
+        '========================================',
+      );
+      debugPrint(
+        'SNOB 계산 완료',
+      );
+      debugPrint(
+        '최종 관광지 수: '
+        '${finalResults.length}',
+      );
+      debugPrint(
+        '========================================',
+      );
+
+
+      for (int i = 0;
+          i < finalResults.length;
+          i++) {
+        final CourseResultData result =
+            finalResults[i];
+
+
+        debugPrint(
+          '[${i + 1}] '
+          '${_getSpotName(result.spot)} '
+          '| SNOB: '
+          '${result.snobScore.toStringAsFixed(2)}',
+        );
+      }
+    } catch (e) {
+      debugPrint('');
+      debugPrint(
+        '========================================',
+      );
+      debugPrint(
+        'COURSE RESULT 오류',
+      );
+      debugPrint(
+        e.toString(),
+      );
+      debugPrint(
+        '========================================',
+      );
+
+
+      if (!mounted) {
+        return;
+      }
+
+
+      setState(() {
+        errorMessage =
+            e.toString();
+
         isLoading = false;
       });
     }
   }
 
+
   // ============================================================
-  // Map → TravelSpot 변환
-  //
-  // TravelSpot.fromMap()에 의존하지 않고
-  // 현재 TravelSpot 모델의 생성자를 직접 사용한다.
+  // 관광지 이름
   // ============================================================
 
-  TravelSpot _createTravelSpot(
-    SnobFinalResult result,
+  String _getSpotName(
+    Map<String, dynamic> spot,
   ) {
-    final spot = result.spot;
+    final List<dynamic> candidates = [
+      spot['title'],
+      spot['name'],
+      spot['tAtsNm'],
+      spot['hubTatsNm'],
+    ];
 
-    final name =
-        spot['hubTatsNm']?.toString() ?? '이름 없음';
 
-    final category =
-        spot['hubCtgryMclsNm']?.toString();
+    for (final value in candidates) {
+      if (value != null &&
+          value
+              .toString()
+              .trim()
+              .isNotEmpty) {
+        return value
+            .toString()
+            .trim();
+      }
+    }
 
-    final address =
-        spot['signguNm']?.toString();
 
-    // ------------------------------------------------------------
-    // 좌표 처리
-    //
-    // 데이터에 따라 lat/lng, latitude/longitude,
-    // x/y 등의 이름이 다를 수 있으므로 여러 형태 지원
-    // ------------------------------------------------------------
-
-    double? latitude = _toDouble(
-      spot['latitude'] ??
-          spot['lat'] ??
-          spot['y'],
-    );
-
-    double? longitude = _toDouble(
-      spot['longitude'] ??
-          spot['lng'] ??
-          spot['lon'] ??
-          spot['x'],
-    );
-
-    // ------------------------------------------------------------
-    // contentId
-    // ------------------------------------------------------------
-
-    final contentId =
-        spot['contentId']?.toString();
-
-    // ------------------------------------------------------------
-    // Kakao 관련 정보
-    // ------------------------------------------------------------
-
-    final kakaoPlaceId =
-        spot['kakaoPlaceId']?.toString();
-
-    final kakaoPlaceUrl =
-        spot['kakaoPlaceUrl']?.toString();
-
-    return TravelSpot(
-      name: name,
-      category: category,
-      address: address,
-      latitude: latitude,
-      longitude: longitude,
-      congestion: result.averageCongestion,
-      snobScore: result.totalScore,
-      contentId: contentId,
-      kakaoPlaceId: kakaoPlaceId,
-      kakaoPlaceUrl: kakaoPlaceUrl,
-      startMinute: null,
-      durationMinutes: 60,
-      travelMinutesFromPrevious: 0,
-    );
+    return '이름 없음';
   }
+
+
+  // ============================================================
+  // 카테고리
+  // ============================================================
+
+  String _getCategory(
+    Map<String, dynamic> spot,
+  ) {
+    final List<dynamic> candidates = [
+      spot['lclsSystm2'],
+      spot['lclsSystm3'],
+      spot['category'],
+      spot['contentTypeId'],
+      spot['hubCtgryMclsNm'],
+    ];
+
+
+    for (final value in candidates) {
+      if (value != null &&
+          value
+              .toString()
+              .trim()
+              .isNotEmpty) {
+        return value
+            .toString()
+            .trim();
+      }
+    }
+
+
+    return '';
+  }
+
+
+  // ============================================================
+  // 주소
+  // ============================================================
+
+  String _getAddress(
+    Map<String, dynamic> spot,
+  ) {
+    final List<dynamic> candidates = [
+      spot['address'],
+      spot['addr1'],
+      spot['addr2'],
+      spot['signguNm'],
+    ];
+
+
+    for (final value in candidates) {
+      if (value != null &&
+          value
+              .toString()
+              .trim()
+              .isNotEmpty) {
+        return value
+            .toString()
+            .trim();
+      }
+    }
+
+
+    return '';
+  }
+
 
   // ============================================================
   // 숫자 변환
   // ============================================================
 
-  double? _toDouble(dynamic value) {
-    if (value == null) return null;
+  double? _toDouble(
+    dynamic value,
+  ) {
+    if (value == null) {
+      return null;
+    }
+
 
     if (value is num) {
       return value.toDouble();
     }
 
-    return double.tryParse(
-      value.toString(),
+
+    final String text =
+        value.toString().trim();
+
+
+    if (text.isEmpty) {
+      return null;
+    }
+
+
+    return double.tryParse(text);
+  }
+
+
+  // ============================================================
+  // Map → TravelSpot
+  // ============================================================
+
+  TravelSpot _createTravelSpot(
+    CourseResultData result,
+  ) {
+    final Map<String, dynamic>
+        spot = result.spot;
+
+
+    final String name =
+        _getSpotName(spot);
+
+
+    final String category =
+        _getCategory(spot);
+
+
+    final String address =
+        _getAddress(spot);
+
+
+    final double? latitude =
+        _toDouble(
+      spot['latitude'] ??
+          spot['lat'] ??
+          spot['y'] ??
+          spot['mapy'],
+    );
+
+
+    final double? longitude =
+        _toDouble(
+      spot['longitude'] ??
+          spot['lng'] ??
+          spot['lon'] ??
+          spot['x'] ??
+          spot['mapx'],
+    );
+
+
+    final String? contentId =
+        spot['contentId']
+            ?.toString();
+
+
+    final String? kakaoPlaceId =
+        spot['kakaoPlaceId']
+            ?.toString();
+
+
+    final String? kakaoPlaceUrl =
+        spot['kakaoPlaceUrl']
+            ?.toString();
+
+
+    return TravelSpot(
+      name: name,
+
+      category:
+          category.isEmpty
+              ? null
+              : category,
+
+      address:
+          address.isEmpty
+              ? null
+              : address,
+
+      latitude: latitude,
+
+      longitude: longitude,
+
+      congestion:
+          result.averageConcentration,
+
+      snobScore:
+          result.snobScore,
+
+      contentId:
+          contentId,
+
+      kakaoPlaceId:
+          kakaoPlaceId,
+
+      kakaoPlaceUrl:
+          kakaoPlaceUrl,
+
+      startMinute: null,
+
+      durationMinutes:
+          60,
+
+      travelMinutesFromPrevious:
+          0,
     );
   }
+
 
   // ============================================================
   // 특정 Day 찾기
   // ============================================================
 
-  TravelDay? _findDay(int dayNumber) {
-    for (final day in travelPlan.days) {
+  TravelDay? _findDay(
+    int dayNumber,
+  ) {
+    for (final day
+        in travelPlan.days) {
       if (day.day == dayNumber) {
         return day;
       }
     }
 
+
     return null;
   }
+
 
   // ============================================================
   // 관광지를 일정에 추가
   // ============================================================
 
   Future<void> _addToPlan(
-    SnobFinalResult result,
+    CourseResultData result,
     int dayNumber,
   ) async {
-    if (isSaving) return;
+    if (isSaving) {
+      return;
+    }
 
-    final day = _findDay(dayNumber);
+
+    final TravelDay? day =
+        _findDay(dayNumber);
+
 
     if (day == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         const SnackBar(
           content: Text(
             '해당 여행 일정을 찾을 수 없습니다.',
           ),
         ),
       );
+
+
       return;
     }
 
-    final spot = _createTravelSpot(result);
 
-    // ------------------------------------------------------------
+    final TravelSpot spot =
+        _createTravelSpot(result);
+
+
+    // ----------------------------------------------------------
     // 중복 체크
-    // ------------------------------------------------------------
+    // ----------------------------------------------------------
 
-    final alreadyExists = day.spots.any(
+    final bool alreadyExists =
+        day.spots.any(
       (existingSpot) =>
-          existingSpot.name == spot.name,
+          existingSpot.name ==
+          spot.name,
     );
+
 
     if (alreadyExists) {
       Navigator.pop(context);
 
-      ScaffoldMessenger.of(context).showSnackBar(
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         SnackBar(
           content: Text(
-            '${spot.name}은(는) 이미 Day $dayNumber에 추가되어 있어요.',
+            '${spot.name}은(는) '
+            '이미 Day $dayNumber에 '
+            '추가되어 있어요.',
           ),
         ),
       );
 
+
       return;
     }
 
-    // ------------------------------------------------------------
-    // 일정에 직접 추가
-    // ------------------------------------------------------------
+
+    // ----------------------------------------------------------
+    // 일정 추가
+    // ----------------------------------------------------------
 
     setState(() {
       isSaving = true;
     });
 
+
     day.spots.add(spot);
-    travelPlan.updatedAt = DateTime.now();
+
+    travelPlan.updatedAt =
+        DateTime.now();
+
 
     try {
-      await TravelPlanStorage.saveTravelPlan(
+      await TravelPlanStorage
+          .saveTravelPlan(
         travelPlan,
       );
 
-      if (!mounted) return;
+
+      if (!mounted) {
+        return;
+      }
+
 
       setState(() {
         isSaving = false;
       });
+
 
       Navigator.pop(context);
 
-      ScaffoldMessenger.of(context).showSnackBar(
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         SnackBar(
           content: Text(
-            '${spot.name}이(가) Day $dayNumber 일정에 추가됐어요.',
+            '${spot.name}이(가) '
+            'Day $dayNumber 일정에 '
+            '추가됐어요.',
           ),
-          duration: const Duration(seconds: 1),
+          duration:
+              const Duration(
+            seconds: 1,
+          ),
         ),
       );
     } catch (e) {
-      // 저장 실패 시 방금 추가한 관광지를 되돌린다.
       day.spots.remove(spot);
 
-      if (!mounted) return;
+
+      if (!mounted) {
+        return;
+      }
+
 
       setState(() {
         isSaving = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         SnackBar(
           content: Text(
-            '일정 저장 중 오류가 발생했습니다.\n$e',
+            '일정 저장 중 오류가 발생했습니다.\n'
+            '$e',
           ),
         ),
       );
     }
   }
 
+
   // ============================================================
   // 일정에 이미 추가됐는지 확인
   // ============================================================
 
-  bool _isAdded(String spotName) {
+  bool _isAdded(
+    String spotName,
+  ) {
     return travelPlan.days
-        .expand((day) => day.spots)
+        .expand(
+          (day) => day.spots,
+        )
         .any(
-          (spot) => spot.name == spotName,
+          (spot) =>
+              spot.name ==
+              spotName,
         );
   }
 
+
   // ============================================================
-  // 해당 관광지가 몇 일차에 있는지
+  // 관광지가 몇 일차에 있는지
   // ============================================================
 
-  int? _getAddedDay(String spotName) {
-    for (final day in travelPlan.days) {
-      final exists = day.spots.any(
-        (spot) => spot.name == spotName,
+  int? _getAddedDay(
+    String spotName,
+  ) {
+    for (final day
+        in travelPlan.days) {
+      final bool exists =
+          day.spots.any(
+        (spot) =>
+            spot.name ==
+            spotName,
       );
+
 
       if (exists) {
         return day.day;
       }
     }
 
+
     return null;
   }
+
 
   // ============================================================
   // Day 추가
   // ============================================================
 
   Future<void> _addDay() async {
-    final nextDay = travelPlan.days.isEmpty
-        ? 1
-        : travelPlan.days
-                .map((day) => day.day)
-                .reduce(
-                  (a, b) => a > b ? a : b,
-                ) +
-            1;
+    final int nextDay =
+        travelPlan.days.isEmpty
+            ? 1
+            : travelPlan.days
+                    .map(
+                      (day) => day.day,
+                    )
+                    .reduce(
+                      (a, b) =>
+                          a > b ? a : b,
+                    ) +
+                1;
+
 
     travelPlan.days.add(
       TravelDay(
@@ -438,29 +1236,47 @@ class _CourseResultScreenState
       ),
     );
 
+
     travelPlan.days.sort(
-      (a, b) => a.day.compareTo(b.day),
+      (a, b) =>
+          a.day.compareTo(
+        b.day,
+      ),
     );
 
-    travelPlan.updatedAt = DateTime.now();
 
-    await TravelPlanStorage.saveTravelPlan(
+    travelPlan.updatedAt =
+        DateTime.now();
+
+
+    await TravelPlanStorage
+        .saveTravelPlan(
       travelPlan,
     );
 
-    if (!mounted) return;
+
+    if (!mounted) {
+      return;
+    }
+
 
     setState(() {});
 
-    ScaffoldMessenger.of(context).showSnackBar(
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
       SnackBar(
         content: Text(
           'Day $nextDay이 추가됐어요.',
         ),
-        duration: const Duration(seconds: 1),
+        duration:
+            const Duration(
+          seconds: 1,
+        ),
       ),
     );
   }
+
 
   // ============================================================
   // 현재 일정 보기
@@ -470,7 +1286,8 @@ class _CourseResultScreenState
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor:
+          Colors.transparent,
       builder: (context) {
         return StatefulBuilder(
           builder: (
@@ -479,12 +1296,16 @@ class _CourseResultScreenState
           ) {
             return SafeArea(
               child: Container(
-                constraints: BoxConstraints(
+                constraints:
+                    BoxConstraints(
                   maxHeight:
-                      MediaQuery.of(context).size.height *
+                      MediaQuery.of(context)
+                              .size
+                              .height *
                           0.8,
                 ),
-                decoration: const BoxDecoration(
+                decoration:
+                    const BoxDecoration(
                   color: Colors.white,
                   borderRadius:
                       BorderRadius.vertical(
@@ -515,7 +1336,8 @@ class _CourseResultScreenState
                                   CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  travelPlan.regionName,
+                                  travelPlan
+                                      .regionName,
                                   style:
                                       const TextStyle(
                                     fontSize: 22,
@@ -523,12 +1345,15 @@ class _CourseResultScreenState
                                         FontWeight.bold,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(
+                                  height: 4,
+                                ),
                                 Text(
                                   '${travelPlan.totalSpotCount}곳의 관광지가 추가됨',
                                   style:
                                       const TextStyle(
-                                    color: Colors.grey,
+                                    color:
+                                        Colors.grey,
                                   ),
                                 ),
                               ],
@@ -547,7 +1372,9 @@ class _CourseResultScreenState
                         ],
                       ),
 
-                      const SizedBox(height: 15),
+                      const SizedBox(
+                        height: 15,
+                      ),
 
                       // ------------------------------------------------
                       // Day 목록
@@ -565,29 +1392,34 @@ class _CourseResultScreenState
                               },
                             ),
 
-                            const SizedBox(height: 10),
-
-                            // ------------------------------------------------
-                            // Day 추가
-                            // ------------------------------------------------
+                            const SizedBox(
+                              height: 10,
+                            ),
 
                             OutlinedButton.icon(
-                              onPressed: () async {
+                              onPressed:
+                                  () async {
                                 await _addDay();
 
                                 if (mounted) {
-                                  setModalState(() {});
+                                  setModalState(
+                                    () {},
+                                  );
                                 }
                               },
-                              icon: const Icon(
+                              icon:
+                                  const Icon(
                                 Icons.add,
                               ),
-                              label: const Text(
+                              label:
+                                  const Text(
                                 '여행 일정 추가',
                               ),
                             ),
 
-                            const SizedBox(height: 10),
+                            const SizedBox(
+                              height: 10,
+                            ),
                           ],
                         ),
                       ),
@@ -602,6 +1434,7 @@ class _CourseResultScreenState
     );
   }
 
+
   // ============================================================
   // Day 하나 표시
   // ============================================================
@@ -611,19 +1444,23 @@ class _CourseResultScreenState
     StateSetter setModalState,
   ) {
     return Container(
-      margin: const EdgeInsets.only(
+      margin:
+          const EdgeInsets.only(
         bottom: 14,
       ),
-      decoration: BoxDecoration(
+      decoration:
+          BoxDecoration(
         color: Colors.grey.shade50,
         borderRadius:
             BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.grey.shade200,
+          color:
+              Colors.grey.shade200,
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding:
+            const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
@@ -640,33 +1477,46 @@ class _CourseResultScreenState
                     horizontal: 12,
                     vertical: 7,
                   ),
-                  decoration: BoxDecoration(
+                  decoration:
+                      BoxDecoration(
                     color: Colors.black,
                     borderRadius:
-                        BorderRadius.circular(20),
+                        BorderRadius.circular(
+                      20,
+                    ),
                   ),
                   child: Text(
                     'DAY ${day.day}',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style:
+                        const TextStyle(
+                      color:
+                          Colors.white,
                       fontWeight:
                           FontWeight.bold,
                       fontSize: 13,
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+
+                const SizedBox(
+                  width: 10,
+                ),
+
                 Text(
                   '${day.spots.length}곳',
-                  style: const TextStyle(
-                    color: Colors.grey,
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.grey,
                     fontSize: 13,
                   ),
                 ),
               ],
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(
+              height: 12,
+            ),
 
             // ------------------------------------------------
             // 관광지 없음
@@ -680,8 +1530,10 @@ class _CourseResultScreenState
                 ),
                 child: Text(
                   '아직 추가한 관광지가 없어요.',
-                  style: TextStyle(
-                    color: Colors.grey,
+                  style:
+                      TextStyle(
+                    color:
+                        Colors.grey,
                   ),
                 ),
               )
@@ -696,14 +1548,18 @@ class _CourseResultScreenState
                   .entries
                   .map(
                 (entry) {
-                  final index = entry.key;
-                  final spot = entry.value;
+                  final int index =
+                      entry.key;
+
+                  final TravelSpot spot =
+                      entry.value;
 
                   return ListTile(
                     contentPadding:
                         EdgeInsets.zero,
 
-                    leading: CircleAvatar(
+                    leading:
+                        CircleAvatar(
                       radius: 17,
                       child: Text(
                         '${index + 1}',
@@ -724,39 +1580,54 @@ class _CourseResultScreenState
                     ),
 
                     subtitle:
-                        spot.category != null
+                        spot.category !=
+                                null
                             ? Text(
                                 spot.category!,
                               )
                             : null,
 
-                    trailing: IconButton(
-                      icon: const Icon(
-                        Icons.delete_outline,
+                    trailing:
+                        IconButton(
+                      icon:
+                          const Icon(
+                        Icons
+                            .delete_outline,
                       ),
-                      onPressed: () async {
-                        // ------------------------------------------------
-                        // 직접 삭제
-                        // ------------------------------------------------
-
-                        day.spots.removeWhere(
+                      onPressed:
+                          () async {
+                        day.spots
+                            .removeWhere(
                           (item) =>
                               item.name ==
                               spot.name,
                         );
 
-                        travelPlan.updatedAt =
+
+                        travelPlan
+                                .updatedAt =
                             DateTime.now();
+
 
                         await TravelPlanStorage
                             .saveTravelPlan(
                           travelPlan,
                         );
 
-                        if (!mounted) return;
 
-                        setState(() {});
-                        setModalState(() {});
+                        if (!mounted) {
+                          return;
+                        }
+
+
+                        setState(
+                          () {},
+                        );
+
+
+                        setModalState(
+                          () {},
+                        );
                       },
                     ),
                   );
@@ -768,12 +1639,13 @@ class _CourseResultScreenState
     );
   }
 
+
   // ============================================================
-  // 일정 추가할 Day 선택
+  // 일정 추가 Day 선택
   // ============================================================
 
   void _showDaySelector(
-    SnobFinalResult result,
+    CourseResultData result,
   ) {
     showModalBottomSheet(
       context: context,
@@ -788,7 +1660,9 @@ class _CourseResultScreenState
         return SafeArea(
           child: Padding(
             padding:
-                const EdgeInsets.all(20),
+                const EdgeInsets.all(
+              20,
+            ),
             child: Column(
               mainAxisSize:
                   MainAxisSize.min,
@@ -797,42 +1671,51 @@ class _CourseResultScreenState
               children: [
                 const Text(
                   '어느 날에 추가할까요?',
-                  style: TextStyle(
+                  style:
+                      TextStyle(
                     fontSize: 20,
                     fontWeight:
                         FontWeight.bold,
                   ),
                 ),
 
-                const SizedBox(height: 8),
+                const SizedBox(
+                  height: 8,
+                ),
 
                 Text(
-                  result.spot['hubTatsNm']
-                          ?.toString() ??
-                      '관광지',
+                  _getSpotName(
+                    result.spot,
+                  ),
                   style:
                       const TextStyle(
-                    color: Colors.grey,
+                    color:
+                        Colors.grey,
                   ),
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(
+                  height: 20,
+                ),
 
                 ...travelPlan.days.map(
                   (day) {
                     return ListTile(
                       leading:
                           CircleAvatar(
-                        child: Text(
+                        child:
+                            Text(
                           '${day.day}',
                         ),
                       ),
 
-                      title: Text(
+                      title:
+                          Text(
                         'Day ${day.day}',
                       ),
 
-                      subtitle: Text(
+                      subtitle:
+                          Text(
                         '${day.spots.length}곳',
                       ),
 
@@ -841,40 +1724,48 @@ class _CourseResultScreenState
                         Icons.chevron_right,
                       ),
 
-                      onTap: isSaving
-                          ? null
-                          : () {
-                              _addToPlan(
-                                result,
-                                day.day,
-                              );
-                            },
+                      onTap:
+                          isSaving
+                              ? null
+                              : () {
+                                  _addToPlan(
+                                    result,
+                                    day.day,
+                                  );
+                                },
                     );
                   },
                 ),
 
-                const SizedBox(height: 8),
+                const SizedBox(
+                  height: 8,
+                ),
 
                 OutlinedButton.icon(
-                  onPressed: isSaving
-                      ? null
-                      : () async {
-                          Navigator.pop(
-                            context,
-                          );
+                  onPressed:
+                      isSaving
+                          ? null
+                          : () async {
+                              Navigator.pop(
+                                context,
+                              );
 
-                          await _addDay();
+                              await _addDay();
 
-                          if (!mounted) return;
+                              if (!mounted) {
+                                return;
+                              }
 
-                          _showDaySelector(
-                            result,
-                          );
-                        },
-                  icon: const Icon(
+                              _showDaySelector(
+                                result,
+                              );
+                            },
+                  icon:
+                      const Icon(
                     Icons.add,
                   ),
-                  label: const Text(
+                  label:
+                      const Text(
                     '새로운 Day 추가',
                   ),
                   style:
@@ -894,28 +1785,41 @@ class _CourseResultScreenState
     );
   }
 
+
   // ============================================================
   // build
   // ============================================================
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('코스 추천'),
+        title:
+            const Text(
+          '코스 추천',
+        ),
         actions: [
-          if (travelPlan.totalSpotCount > 0)
+          if (travelPlan
+                  .totalSpotCount >
+              0)
             IconButton(
-              icon: const Icon(
-                Icons.calendar_today_outlined,
+              icon:
+                  const Icon(
+                Icons
+                    .calendar_today_outlined,
               ),
-              onPressed: _showPlan,
+              onPressed:
+                  _showPlan,
             ),
         ],
       ),
-      body: _buildBody(),
+      body:
+          _buildBody(),
     );
   }
+
 
   // ============================================================
   // Body
@@ -934,27 +1838,35 @@ class _CourseResultScreenState
           children: [
             CircularProgressIndicator(),
 
-            SizedBox(height: 20),
+            SizedBox(
+              height: 20,
+            ),
 
             Text(
-              '관광지 혼잡도를 분석하고 있어요.',
-              style: TextStyle(
+              '관광지와 SNOB 점수를 분석하고 있어요.',
+              style:
+                  TextStyle(
                 fontSize: 15,
               ),
             ),
 
-            SizedBox(height: 8),
+            SizedBox(
+              height: 8,
+            ),
 
             Text(
               '잠시만 기다려주세요.',
-              style: TextStyle(
-                color: Colors.grey,
+              style:
+                  TextStyle(
+                color:
+                    Colors.grey,
               ),
             ),
           ],
         ),
       );
     }
+
 
     // ----------------------------------------------------------
     // 오류
@@ -964,7 +1876,9 @@ class _CourseResultScreenState
       return Center(
         child: Padding(
           padding:
-              const EdgeInsets.all(20),
+              const EdgeInsets.all(
+            20,
+          ),
           child: Column(
             mainAxisAlignment:
                 MainAxisAlignment.center,
@@ -975,19 +1889,24 @@ class _CourseResultScreenState
                 color: Colors.grey,
               ),
 
-              const SizedBox(height: 15),
+              const SizedBox(
+                height: 15,
+              ),
 
               const Text(
                 '코스 추천 중 오류가 발생했습니다.',
                 textAlign:
                     TextAlign.center,
-                style: TextStyle(
+                style:
+                    TextStyle(
                   fontWeight:
                       FontWeight.bold,
                 ),
               ),
 
-              const SizedBox(height: 10),
+              const SizedBox(
+                height: 10,
+              ),
 
               Text(
                 errorMessage!,
@@ -995,7 +1914,8 @@ class _CourseResultScreenState
                     TextAlign.center,
                 style:
                     const TextStyle(
-                  color: Colors.grey,
+                  color:
+                      Colors.grey,
                 ),
               ),
             ],
@@ -1004,6 +1924,7 @@ class _CourseResultScreenState
       );
     }
 
+
     // ----------------------------------------------------------
     // 결과 없음
     // ----------------------------------------------------------
@@ -1011,15 +1932,16 @@ class _CourseResultScreenState
     if (results.isEmpty) {
       return const Center(
         child: Text(
-          '혼잡도 데이터를 조회할 수 있는\n관광지가 없습니다.',
+          '추천할 관광지가 없습니다.',
           textAlign:
               TextAlign.center,
         ),
       );
     }
 
+
     // ----------------------------------------------------------
-    // 결과 화면
+    // 결과
     // ----------------------------------------------------------
 
     return Column(
@@ -1044,30 +1966,39 @@ class _CourseResultScreenState
             children: [
               const Text(
                 '추천 지역',
-                style: TextStyle(
+                style:
+                    TextStyle(
                   fontSize: 14,
-                  color: Colors.grey,
+                  color:
+                      Colors.grey,
                 ),
               ),
 
-              const SizedBox(height: 5),
+              const SizedBox(
+                height: 5,
+              ),
 
               Text(
                 widget.regionName,
-                style: const TextStyle(
+                style:
+                    const TextStyle(
                   fontSize: 27,
                   fontWeight:
                       FontWeight.bold,
                 ),
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(
+                height: 8,
+              ),
 
               const Text(
-                '혼잡도가 낮고 SNOB 점수가 높은 관광지부터 추천해드려요.',
-                style: TextStyle(
+                'SNOB 점수가 높은 관광지부터 추천해드려요.',
+                style:
+                    TextStyle(
                   fontSize: 14,
-                  color: Colors.grey,
+                  color:
+                      Colors.grey,
                 ),
               ),
             ],
@@ -1083,47 +2014,64 @@ class _CourseResultScreenState
         // ========================================================
 
         Expanded(
-          child: ListView.builder(
+          child:
+              ListView.builder(
             padding:
-                const EdgeInsets.all(16),
-            itemCount: results.length,
+                const EdgeInsets.all(
+              16,
+            ),
+            itemCount:
+                results.length,
             itemBuilder:
                 (context, index) {
-              final result =
+              final CourseResultData
+                  result =
                   results[index];
 
-              final spot =
+
+              final Map<String, dynamic>
+                  spot =
                   result.spot;
 
-              final spotName =
-                  spot['hubTatsNm']
-                          ?.toString() ??
-                      '이름 없음';
 
-              final middleCategory =
-                  spot['hubCtgryMclsNm']
-                          ?.toString() ??
-                      '';
+              final String spotName =
+                  _getSpotName(
+                spot,
+              );
 
-              final signguName =
-                  spot['signguNm']
-                          ?.toString() ??
-                      '';
 
-              final isAdded =
-                  _isAdded(spotName);
+              final String category =
+                  _getCategory(
+                spot,
+              );
 
-              final addedDay =
+
+              final String address =
+                  _getAddress(
+                spot,
+              );
+
+
+              final bool isAdded =
+                  _isAdded(
+                spotName,
+              );
+
+
+              final int? addedDay =
                   _getAddedDay(
                 spotName,
               );
 
+
               return Card(
                 elevation: 0,
+
                 margin:
                     const EdgeInsets.only(
                   bottom: 12,
                 ),
+
                 shape:
                     RoundedRectangleBorder(
                   borderRadius:
@@ -1135,11 +2083,13 @@ class _CourseResultScreenState
                         Colors.grey.shade200,
                   ),
                 ),
+
                 child: Padding(
                   padding:
                       const EdgeInsets.all(
                     16,
                   ),
+
                   child: Column(
                     children: [
                       Row(
@@ -1147,19 +2097,19 @@ class _CourseResultScreenState
                             CrossAxisAlignment
                                 .start,
                         children: [
-                          // ------------------------------------------------
+                          // ------------------------------------------
                           // 순위
-                          // ------------------------------------------------
+                          // ------------------------------------------
 
                           CircleAvatar(
                             radius: 20,
-                            child: Text(
+                            child:
+                                Text(
                               '${index + 1}',
                               style:
                                   const TextStyle(
                                 fontWeight:
-                                    FontWeight
-                                        .bold,
+                                    FontWeight.bold,
                               ),
                             ),
                           ),
@@ -1168,12 +2118,13 @@ class _CourseResultScreenState
                             width: 14,
                           ),
 
-                          // ------------------------------------------------
+                          // ------------------------------------------
                           // 관광지 정보
-                          // ------------------------------------------------
+                          // ------------------------------------------
 
                           Expanded(
-                            child: Column(
+                            child:
+                                Column(
                               crossAxisAlignment:
                                   CrossAxisAlignment
                                       .start,
@@ -1184,8 +2135,7 @@ class _CourseResultScreenState
                                       const TextStyle(
                                     fontSize: 17,
                                     fontWeight:
-                                        FontWeight
-                                            .bold,
+                                        FontWeight.bold,
                                   ),
                                 ),
 
@@ -1193,10 +2143,10 @@ class _CourseResultScreenState
                                   height: 5,
                                 ),
 
-                                if (middleCategory
+                                if (category
                                     .isNotEmpty)
                                   Text(
-                                    middleCategory,
+                                    category,
                                     style:
                                         const TextStyle(
                                       color:
@@ -1206,10 +2156,15 @@ class _CourseResultScreenState
                                     ),
                                   ),
 
-                                if (signguName
+                                if (address
                                     .isNotEmpty)
                                   Text(
-                                    signguName,
+                                    address,
+                                    maxLines:
+                                        2,
+                                    overflow:
+                                        TextOverflow
+                                            .ellipsis,
                                     style:
                                         const TextStyle(
                                       color:
@@ -1229,31 +2184,20 @@ class _CourseResultScreenState
                       ),
 
                       // ====================================================
-                      // 점수 영역
+                      // SNOB 점수
                       // ====================================================
 
-                      Row(
-                        children: [
-                          Expanded(
-                            child:
-                                _ScoreBox(
-                              title: 'SNOB',
-                              value: result
-                                  .totalScore
-                                  .toStringAsFixed(
-                                1,
-                              ),
-                              icon: Icons
-                                  .travel_explore,
-                            ),
-                          ),
-
-                          const SizedBox(
-                            width: 10,
-                          ),
-
-                          
-                        ],
+                      _ScoreBox(
+                        title:
+                            'SNOB',
+                        value:
+                            result.snobScore
+                                .toStringAsFixed(
+                          1,
+                        ),
+                        icon:
+                            Icons
+                                .travel_explore,
                       ),
 
                       const SizedBox(
@@ -1261,14 +2205,15 @@ class _CourseResultScreenState
                       ),
 
                       // ====================================================
-                      // 일정 추가 버튼
+                      // 일정 추가
                       // ====================================================
 
                       SizedBox(
                         width:
                             double.infinity,
                         child:
-                            FilledButton.icon(
+                            FilledButton
+                                .icon(
                           onPressed:
                               isAdded ||
                                       isSaving
@@ -1278,12 +2223,16 @@ class _CourseResultScreenState
                                         result,
                                       );
                                     },
-                          icon: Icon(
+
+                          icon:
+                              Icon(
                             isAdded
                                 ? Icons.check
                                 : Icons.add,
                           ),
-                          label: Text(
+
+                          label:
+                              Text(
                             isAdded
                                 ? 'Day $addedDay 일정에 추가됨'
                                 : '일정에 추가',
@@ -1302,11 +2251,13 @@ class _CourseResultScreenState
   }
 }
 
+
 // ================================================================
 // 점수 박스
 // ================================================================
 
-class _ScoreBox extends StatelessWidget {
+class _ScoreBox
+    extends StatelessWidget {
   final String title;
   final String value;
   final IconData icon;
@@ -1318,27 +2269,41 @@ class _ScoreBox extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Container(
+      width:
+          double.infinity,
+
       padding:
           const EdgeInsets.symmetric(
         horizontal: 12,
         vertical: 12,
       ),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+
+      decoration:
+          BoxDecoration(
+        color:
+            Colors.grey.shade50,
         borderRadius:
-            BorderRadius.circular(12),
+            BorderRadius.circular(
+          12,
+        ),
       ),
+
       child: Row(
         children: [
           Icon(
             icon,
             size: 20,
-            color: Colors.grey.shade700,
+            color:
+                Colors.grey.shade700,
           ),
 
-          const SizedBox(width: 8),
+          const SizedBox(
+            width: 8,
+          ),
 
           Expanded(
             child: Column(
@@ -1347,23 +2312,23 @@ class _ScoreBox extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  maxLines: 1,
-                  overflow:
-                      TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style:
+                      TextStyle(
                     fontSize: 11,
                     color:
                         Colors.grey.shade600,
                   ),
                 ),
 
-                const SizedBox(height: 3),
+                const SizedBox(
+                  height: 3,
+                ),
 
                 Text(
                   value,
                   style:
                       const TextStyle(
-                    fontSize: 17,
+                    fontSize: 19,
                     fontWeight:
                         FontWeight.bold,
                   ),

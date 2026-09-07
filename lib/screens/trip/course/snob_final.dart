@@ -1,4 +1,3 @@
-import 'snob_crowding.dart';
 import 'snob_sensitivity.dart';
 import 'snob_substitutability.dart';
 
@@ -6,8 +5,8 @@ import 'snob_substitutability.dart';
 // 최종 SNOB 계산 결과
 // ================================================================
 //
-// Crowding        최대 45점
-// Sensitivity     최대 20점
+// Crowding         최대 45점
+// Sensitivity      최대 20점
 // Substitutability 최대 35점
 //
 // 총 최대 100점
@@ -23,7 +22,7 @@ class SnobFinalResult {
   final double sensitivityScore;
   final double substitutabilityScore;
 
-  final double averageCongestion;
+  final double averageConcentration;
 
   final double totalScore;
 
@@ -32,26 +31,30 @@ class SnobFinalResult {
     required this.crowdingScore,
     required this.sensitivityScore,
     required this.substitutabilityScore,
-    required this.averageCongestion,
+    required this.averageConcentration,
     required this.totalScore,
   });
 
   @override
   String toString() {
-    final name =
-        spot['hubTatsNm'] ?? '이름 없음';
+    final String name =
+        spot['title'] ??
+        spot['name'] ??
+        spot['tAtsNm'] ??
+        spot['hubTatsNm'] ??
+        '이름 없음';
 
     return '''
 $name
-Crowding          : ${crowdingScore.toStringAsFixed(2)}
-Sensitivity       : ${sensitivityScore.toStringAsFixed(2)}
-Substitutability  : ${substitutabilityScore.toStringAsFixed(2)}
+Crowding         : ${crowdingScore.toStringAsFixed(2)}
+Sensitivity      : ${sensitivityScore.toStringAsFixed(2)}
+Substitutability : ${substitutabilityScore.toStringAsFixed(2)}
 --------------------------------
-SNOB 최종 점수     : ${totalScore.toStringAsFixed(2)}
+평균 집중률       : ${averageConcentration.toStringAsFixed(2)}
+SNOB 최종 점수    : ${totalScore.toStringAsFixed(2)}
 ''';
   }
 }
-
 
 // ================================================================
 // 최종 SNOB 계산
@@ -59,15 +62,28 @@ SNOB 최종 점수     : ${totalScore.toStringAsFixed(2)}
 
 class SnobFinal {
   // ==============================================================
-  // 세 가지 SNOB 지표 계산기
+  // 점수 설정
   // ==============================================================
 
-  final SnobCrowding _crowding =
-      SnobCrowding();
+  // Crowding 최대 점수
+  static const double maxCrowdingScore = 45.0;
+
+  // 집중률 데이터를 찾지 못했을 때 사용하는 기본 집중률
+  static const double defaultConcentration = 50.0;
+
+  // 집중률 데이터를 찾지 못했을 때 사용하는 중립 Crowding 점수
+  static const double neutralCrowdingScore = 22.5;
+
+  // ==============================================================
+  // Substitutability 계산기
+  // ==============================================================
+  //
+  // SnobSubstitutability의 calculate()가
+  // static 메서드가 아니기 때문에 인스턴스로 생성
+  // ==============================================================
 
   final SnobSubstitutability _substitutability =
       SnobSubstitutability();
-
 
   // ==============================================================
   // 최종 계산
@@ -76,16 +92,34 @@ class SnobFinal {
   Future<List<SnobFinalResult>> calculate(
     List<Map<String, dynamic>> spots,
   ) async {
-
     print('');
     print('============================================================');
     print('SNOB FINAL 시작');
     print('대상 관광지 수 : ${spots.length}');
     print('============================================================');
 
+    if (spots.isEmpty) {
+      print('');
+      print('❌ 대상 관광지가 없습니다.');
+      return [];
+    }
 
     // ============================================================
     // 1. Crowding 계산
+    // ============================================================
+    //
+    // 이제 snob_crowding.dart를 사용하지 않는다.
+    //
+    // 이미 SpotMappingService에서 매핑된
+    // concentrationRate를 사용한다.
+    //
+    // 집중률이 낮을수록 높은 점수
+    //
+    // Crowding 점수:
+    //
+    // (100 - 집중률) × 0.45
+    //
+    // 최대 45점
     // ============================================================
 
     print('');
@@ -93,9 +127,49 @@ class SnobFinal {
     print('1. CROWDING 계산');
     print('----------------------------------------');
 
-    final crowdingResults =
-        await _crowding.calculate(spots);
+    final Map<String, _CrowdingData> crowdingMap =
+        {};
 
+    for (final spot in spots) {
+      final String? id =
+          _getSpotId(spot);
+
+      final String spotName =
+          _getSpotName(spot);
+
+      if (id == null) {
+        print('');
+        print(
+          '⚠️ contentId가 없어 Crowding 결과를 '
+          'ID Map에 저장하지 않습니다.',
+        );
+        print('관광지 : $spotName');
+
+        continue;
+      }
+
+      final double concentration =
+          _getConcentration(spot);
+
+      final double crowdingScore =
+          _calculateCrowdingScore(
+        concentration,
+      );
+
+      crowdingMap[id] =
+          _CrowdingData(
+        averageConcentration:
+            concentration,
+        crowdingScore:
+            crowdingScore,
+      );
+
+      print(
+        '$spotName'
+        ' | 집중률 ${concentration.toStringAsFixed(2)}'
+        ' | Crowding ${crowdingScore.toStringAsFixed(2)}',
+      );
+    }
 
     // ============================================================
     // 2. Sensitivity 계산
@@ -106,9 +180,11 @@ class SnobFinal {
     print('2. SENSITIVITY 계산');
     print('----------------------------------------');
 
-    final sensitivityResults =
-        await SnobSensitivity.calculate(spots);
-
+    final List<SnobSensitivityResult>
+        sensitivityResults =
+        await SnobSensitivity.calculate(
+      spots,
+    );
 
     // ============================================================
     // 3. Substitutability 계산
@@ -119,180 +195,177 @@ class SnobFinal {
     print('3. SUBSTITUTABILITY 계산');
     print('----------------------------------------');
 
-    final substitutabilityResults =
-        await _substitutability.calculate(spots);
-
+    final List<SnobSubstitutabilityResult>
+        substitutabilityResults =
+        await _substitutability.calculate(
+      spots,
+    );
 
     // ============================================================
-    // 4. 관광지별 결과를 ID 기준으로 Map에 저장
+    // 4. Sensitivity 결과 Map
     // ============================================================
     //
-    // 세 계산 결과가 같은 관광지를 가리키도록
-    // hubTatsCd를 기준으로 연결한다.
-    //
-    // 관광지 이름을 기준으로 연결하면
-    // 이름 중복 가능성이 있기 때문에
-    // hubTatsCd를 우선 사용한다.
-    // ============================================================
-
-    final Map<String, SnobCrowdingResult>
-        crowdingMap = {};
-
-    for (final result in crowdingResults) {
-      final id =
-          result.spot['hubTatsCd']?.toString();
-
-      if (id != null && id.isNotEmpty) {
-        crowdingMap[id] = result;
-      }
-    }
-
+    // 관광지 식별자는 contentId 사용
+    // ==============================================================
 
     final Map<String, SnobSensitivityResult>
         sensitivityMap = {};
 
     for (final result in sensitivityResults) {
-      final id =
-          result.spot['hubTatsCd']?.toString();
+      final String? id =
+          _getSpotId(result.spot);
 
-      if (id != null && id.isNotEmpty) {
+      if (id != null) {
         sensitivityMap[id] = result;
       }
     }
 
+    // ============================================================
+    // 5. Substitutability 결과 Map
+    // ============================================================
 
     final Map<String, SnobSubstitutabilityResult>
         substitutabilityMap = {};
 
     for (final result in substitutabilityResults) {
-      final id =
-          result.spot['hubTatsCd']?.toString();
+      final String? id =
+          _getSpotId(result.spot);
 
-      if (id != null && id.isNotEmpty) {
+      if (id != null) {
         substitutabilityMap[id] = result;
       }
     }
 
-
     // ============================================================
-    // 5. 세 점수 합산
+    // 6. 최종 결과 생성
     // ============================================================
 
     final List<SnobFinalResult> results = [];
 
-
     for (final spot in spots) {
+      final String? id =
+          _getSpotId(spot);
 
-      final id =
-          spot['hubTatsCd']?.toString();
+      final String spotName =
+          _getSpotName(spot);
 
-      if (id == null || id.isEmpty) {
+      // ----------------------------------------------------------
+      // contentId가 없으면 제외
+      // ----------------------------------------------------------
+
+      if (id == null) {
+        print('');
         print(
-          '관광지 코드가 없어 최종 계산에서 제외: $spot',
+          '⚠️ contentId가 없어 최종 계산에서 제외: '
+          '$spotName',
         );
 
         continue;
       }
 
-
       // ----------------------------------------------------------
       // 각 지표 결과 가져오기
       // ----------------------------------------------------------
 
-      final crowding =
+      final _CrowdingData? crowding =
           crowdingMap[id];
 
-      final sensitivity =
+      final SnobSensitivityResult?
+          sensitivity =
           sensitivityMap[id];
 
-      final substitutability =
+      final SnobSubstitutabilityResult?
+          substitutability =
           substitutabilityMap[id];
 
-
-      // ==========================================================
+      // ----------------------------------------------------------
       // ID MATCH 확인
-      // ==========================================================
-      //
-      // 여기서 세 지표의 결과가
-      // 동일한 hubTatsCd를 기준으로
-      // 정상적으로 연결되는지 확인한다.
-      // ==========================================================
+      // ----------------------------------------------------------
 
       print('');
-      print('================ ID MATCH 확인 ================');
-      print('관광지: ${spot['hubTatsNm']}');
-      print('ID: "$id"');
+      print(
+        '================ ID MATCH 확인 ================',
+      );
+
+      print(
+        '관광지: $spotName',
+      );
+
+      print(
+        'contentId: "$id"',
+      );
 
       print(
         'Crowding: '
-        '${crowding != null ? "MATCH" : "❌ NO MATCH"}',
+        '${crowding != null ? "MATCH" : "⚠️ NO MATCH"}',
       );
 
       print(
         'Sensitivity: '
-        '${sensitivity != null ? "MATCH" : "❌ NO MATCH"}',
+        '${sensitivity != null ? "MATCH" : "⚠️ NO MATCH"}',
       );
 
       print(
         'Substitutability: '
-        '${substitutability != null ? "MATCH" : "❌ NO MATCH"}',
+        '${substitutability != null ? "MATCH" : "⚠️ NO MATCH"}',
       );
 
-      print('===============================================');
-
+      print(
+        '===============================================',
+      );
 
       // ----------------------------------------------------------
       // 점수
-      //
-      // 결과가 없는 경우 0점
       // ----------------------------------------------------------
 
-      final crowdingScore =
-          crowding?.crowdingScore ?? 0.0;
+      final double crowdingScore =
+          crowding?.crowdingScore ??
+              neutralCrowdingScore;
 
-      final sensitivityScore =
-          sensitivity?.sensitivityScore ?? 0.0;
+      final double sensitivityScore =
+          sensitivity?.sensitivityScore ??
+              0.0;
 
-      final substitutabilityScore =
+      final double substitutabilityScore =
           substitutability
                   ?.substitutabilityScore ??
               0.0;
 
+      final double averageConcentration =
+          crowding?.averageConcentration ??
+              defaultConcentration;
 
       // ----------------------------------------------------------
       // 최종 SNOB 점수
       //
-      // 45 + 20 + 35 = 최대 100점
+      // 최대:
+      // 45 + 20 + 35 = 100
       // ----------------------------------------------------------
 
-      final totalScore =
+      final double totalScore =
           crowdingScore +
           sensitivityScore +
           substitutabilityScore;
 
-
       results.add(
         SnobFinalResult(
           spot: spot,
-          crowdingScore: crowdingScore,
-          sensitivityScore: sensitivityScore,
+          crowdingScore:
+              crowdingScore,
+          sensitivityScore:
+              sensitivityScore,
           substitutabilityScore:
               substitutabilityScore,
-          averageCongestion:
-              crowding?.averageConcentration ?? 50.0,
-          totalScore: totalScore,
+          averageConcentration:
+              averageConcentration,
+          totalScore:
+              totalScore,
         ),
       );
     }
 
-
     // ============================================================
-    // 6. 최종 점수 내림차순 정렬
-    // ============================================================
-    //
-    // 높은 SNOB 점수
-    //        ↓
-    // 낮은 SNOB 점수
+    // 7. 최종 점수 내림차순 정렬
     // ============================================================
 
     results.sort(
@@ -302,9 +375,8 @@ class SnobFinal {
       ),
     );
 
-
     // ============================================================
-    // 7. 최종 결과 출력
+    // 8. 최종 결과 출력
     // ============================================================
 
     print('');
@@ -312,31 +384,188 @@ class SnobFinal {
     print('SNOB FINAL 결과');
     print('============================================================');
 
-    for (int i = 0; i < results.length; i++) {
-
-      final result =
+    for (int i = 0;
+        i < results.length;
+        i++) {
+      final SnobFinalResult result =
           results[i];
 
-      final name =
-          result.spot['hubTatsNm'] ??
-              '이름 없음';
-
       print(
-        '[${i + 1}] $name '
-        '| Crowding ${result.crowdingScore.toStringAsFixed(2)}'
-        ' | Sensitivity ${result.sensitivityScore.toStringAsFixed(2)}'
-        ' | Substitutability ${result.substitutabilityScore.toStringAsFixed(2)}'
-        ' | SNOB ${result.totalScore.toStringAsFixed(2)}',
+        '[${i + 1}] '
+        '${_getSpotName(result.spot)}'
+        ' | 집중률 '
+        '${result.averageConcentration.toStringAsFixed(2)}'
+        ' | Crowding '
+        '${result.crowdingScore.toStringAsFixed(2)}'
+        ' | Sensitivity '
+        '${result.sensitivityScore.toStringAsFixed(2)}'
+        ' | Substitutability '
+        '${result.substitutabilityScore.toStringAsFixed(2)}'
+        ' | SNOB '
+        '${result.totalScore.toStringAsFixed(2)}',
       );
     }
 
     print('');
     print('============================================================');
     print('SNOB FINAL 종료');
-    print('최종 관광지 수 : ${results.length}');
+    print(
+      '최종 관광지 수 : ${results.length}',
+    );
     print('============================================================');
-
 
     return results;
   }
+
+  // ==============================================================
+  // 관광지 ID
+  // ==============================================================
+  //
+  // TourAPI contentId 사용
+  // ==============================================================
+
+  String? _getSpotId(
+    Map<String, dynamic> spot,
+  ) {
+    final dynamic value =
+        spot['contentId'];
+
+    if (value == null) {
+      return null;
+    }
+
+    final String id =
+        value.toString().trim();
+
+    if (id.isEmpty) {
+      return null;
+    }
+
+    return id;
+  }
+
+  // ==============================================================
+  // 관광지 이름
+  // ==============================================================
+
+  String _getSpotName(
+    Map<String, dynamic> spot,
+  ) {
+    final List<dynamic> candidates = [
+      spot['title'],
+      spot['name'],
+      spot['tAtsNm'],
+      spot['spotName'],
+      spot['hubTatsNm'],
+    ];
+
+    for (final value in candidates) {
+      if (value != null &&
+          value.toString().trim().isNotEmpty) {
+        return value.toString().trim();
+      }
+    }
+
+    return '이름 없음';
+  }
+
+  // ==============================================================
+  // 집중률
+  // ==============================================================
+  //
+  // SpotMappingService에서 들어온
+  // concentrationRate를 가장 우선해서 사용
+  //
+  // 없을 경우:
+  // concentration
+  // cnctrRate
+  //
+  // 모두 없으면 50
+  // ==============================================================
+
+  double _getConcentration(
+    Map<String, dynamic> spot,
+  ) {
+    final List<dynamic> candidates = [
+      spot['concentrationRate'],
+      spot['concentration'],
+      spot['cnctrRate'],
+    ];
+
+    for (final value in candidates) {
+      final double? parsed =
+          _toDouble(value);
+
+      if (parsed != null &&
+          parsed >= 0 &&
+          parsed <= 100) {
+        return parsed;
+      }
+    }
+
+    return defaultConcentration;
+  }
+
+  // ==============================================================
+  // 집중률 → Crowding 점수
+  // ==============================================================
+  //
+  // 집중률이 낮을수록 높은 점수
+  //
+  // 0%   → 45점
+  // 50%  → 22.5점
+  // 100% → 0점
+  // ==============================================================
+
+  double _calculateCrowdingScore(
+    double concentration,
+  ) {
+    final double score =
+        (100.0 - concentration) *
+            0.45;
+
+    return score.clamp(
+      0.0,
+      maxCrowdingScore,
+    );
+  }
+
+  // ==============================================================
+  // 숫자 변환
+  // ==============================================================
+
+  double? _toDouble(
+    dynamic value,
+  ) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    final String text =
+        value.toString().trim();
+
+    if (text.isEmpty) {
+      return null;
+    }
+
+    return double.tryParse(text);
+  }
+}
+
+// ================================================================
+// Crowding 내부 데이터
+// ================================================================
+
+class _CrowdingData {
+  final double averageConcentration;
+  final double crowdingScore;
+
+  const _CrowdingData({
+    required this.averageConcentration,
+    required this.crowdingScore,
+  });
 }
