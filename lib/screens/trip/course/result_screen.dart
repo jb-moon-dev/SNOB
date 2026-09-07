@@ -4,10 +4,12 @@ import '../../../models/travel_plan.dart';
 import '../../../services/travel_plan_storage.dart';
 import '../../../services/tourism_api_service.dart';
 import '../../../services/congestion_service.dart';
+import 'package:snob/snob/tourism_spot.dart';
+
 import '../../../region_mapping/region_mapping_service.dart';
 import '../../../region_mapping/spot_mapping_service.dart';
 import '../../../region_mapping/snob_spot.dart';
-import '../../../snob/tourism_spot.dart';
+
 import 'snob_final.dart';
 
 
