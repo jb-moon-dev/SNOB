@@ -582,13 +582,13 @@ class _MyPageScreenState extends State<MyPageScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      // 배경색은 main.dart의 scaffoldBackgroundColor 사용
 
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
+        // AppBar 색상과 elevation은 main.dart의 appBarTheme 사용
+
         titleSpacing: 20,
+
         title: const Text(
           '마이',
           style: TextStyle(
