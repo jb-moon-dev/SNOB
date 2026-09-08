@@ -5,7 +5,7 @@ import 'package:snob/snob/tourism_spot.dart';
 
 class TourismApiService {
   static const String serviceKey =
-      "cbea666b85656aa336898b2d32bfee6f7d6fdad29e7c840109a41b9bf449c8a9";
+      "22cfa7aa1cefdd4fe98e0e9dad0415b994b125c08a2da84a8757d7ac5aa09af5";
 
   static const String baseUrl =
       "https://apis.data.go.kr/B551011/KorService2";
