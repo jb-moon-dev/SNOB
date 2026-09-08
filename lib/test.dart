@@ -1,405 +1,448 @@
 import 'package:snob/region_mapping/region_mapping_service.dart';
-import 'package:snob/services/congestion_service.dart';
+import 'package:snob/services/tourism_api_service.dart';
 
 Future<void> main() async {
-  final CongestionService congestionService =
-      CongestionService();
-
   // ============================================================
-  // 테스트할 현재 지역
+  // 테스트할 지역 목록
+  // ============================================================
+  //
+  // 일반 지역 + 행정구역 예외 지역을 함께 테스트한다.
+  //
+  // 각 지역에 대해:
+  //
+  // 지역명
+  //   ↓
+  // TourAPI 시도 코드
+  //   ↓
+  // TourAPI 시군구 코드
+  //   ↓
+  // RegionMappingService
+  //   ↓
+  // 집중률 API 코드
+  //
+  // 를 확인한다.
   // ============================================================
 
-  final List<Map<String, String>> testRegions = [
-    // ------------------------------------------------------------
-    // 인천
-    // ------------------------------------------------------------
+  const List<String> targetRegions = [
+    // ----------------------------------------------------------
+    // 일반 지역
+    // ----------------------------------------------------------
 
-    {
-      'regionCode': '23',
-      'sigunguCode': '11',
-      'regionName': '인천광역시 영종구',
-    },
-    {
-      'regionCode': '23',
-      'sigunguCode': '11',
-      'regionName': '인천광역시 제물포구',
-    },
-    {
-      'regionCode': '23',
-      'sigunguCode': '26',
-      'regionName': '인천광역시 서해구',
-    },
-    {
-      'regionCode': '23',
-      'sigunguCode': '26',
-      'regionName': '인천광역시 검단구',
-    },
+    '서울특별시 성동구',
+    '부산광역시 해운대구',
+    '대구광역시 서구',
+    '대전광역시 유성구',
+    '울산광역시 남구',
 
-    // ------------------------------------------------------------
-    // 화성시
-    // ------------------------------------------------------------
+    '경기도 이천시',
+    '경기도 수원시 영통구',
 
-    {
-      'regionCode': '41',
-      'sigunguCode': '00',
-      'regionName': '경기도 화성시 만세구',
-    },
-    {
-      'regionCode': '41',
-      'sigunguCode': '00',
-      'regionName': '경기도 화성시 효행구',
-    },
-    {
-      'regionCode': '41',
-      'sigunguCode': '00',
-      'regionName': '경기도 화성시 병점구',
-    },
-    {
-      'regionCode': '41',
-      'sigunguCode': '00',
-      'regionName': '경기도 화성시 동탄구',
-    },
+    '충청북도 청주시 서원구',
+    '충청남도 계룡시',
 
-    // ------------------------------------------------------------
-    // 전남광주통합특별시 - 기존 광주광역시
-    // ------------------------------------------------------------
+    '전남광주통합특별시 여수시',
+    '경상북도 상주시',
+    '경상남도 김해시',
 
-    {
-      'regionCode': '24',
-      'sigunguCode': '00',
-      'regionName': '전남광주통합특별시 광산구',
-    },
-    {
-      'regionCode': '24',
-      'sigunguCode': '00',
-      'regionName': '전남광주통합특별시 동구',
-    },
-    {
-      'regionCode': '24',
-      'sigunguCode': '00',
-      'regionName': '전남광주통합특별시 서구',
-    },
-    {
-      'regionCode': '24',
-      'sigunguCode': '00',
-      'regionName': '전남광주통합특별시 남구',
-    },
-    {
-      'regionCode': '24',
-      'sigunguCode': '00',
-      'regionName': '전남광주통합특별시 북구',
-    },
+    '강원특별자치도 평창군',
+    '전북특별자치도 전주시 덕진구',
 
-    // ------------------------------------------------------------
-    // 전남광주통합특별시 - 기존 전라남도
-    // ------------------------------------------------------------
+    '제주특별자치도 제주시',
 
-    {
-      'regionCode': '46',
-      'sigunguCode': '00',
-      'regionName': '전남광주통합특별시 목포시',
-    },
-    {
-      'regionCode': '46',
-      'sigunguCode': '00',
-      'regionName': '전남광주통합특별시 여수시',
-    },
-    {
-      'regionCode': '46',
-      'sigunguCode': '00',
-      'regionName': '전남광주통합특별시 순천시',
-    },
-    {
-      'regionCode': '46',
-      'sigunguCode': '00',
-      'regionName': '전남광주통합특별시 나주시',
-    },
+    // ----------------------------------------------------------
+    // 인천 행정구역 개편
+    // ----------------------------------------------------------
+
+    '인천광역시 영종구',
+    '인천광역시 제물포구',
+    '인천광역시 서해구',
+    '인천광역시 검단구',
+
+    // ----------------------------------------------------------
+    // 화성시 행정구역 개편
+    // ----------------------------------------------------------
+
+    '경기도 화성시',
+    '경기도 화성시 만세구',
+    '경기도 화성시 효행구',
+    '경기도 화성시 병점구',
+    '경기도 화성시 동탄구',
+
+    // ----------------------------------------------------------
+    // 전남광주통합특별시
+    // ----------------------------------------------------------
+
+    '전남광주통합특별시 동구',
+    '전남광주통합특별시 서구',
+    '전남광주통합특별시 남구',
+    '전남광주통합특별시 북구',
+    '전남광주통합특별시 광산구',
+
+    '전남광주통합특별시 목포시',
+    '전남광주통합특별시 여수시',
+    '전남광주통합특별시 순천시',
+    '전남광주통합특별시 나주시',
+    '전남광주통합특별시 광양시',
   ];
 
+  print('');
+  print('==================================================');
+  print('SNOB 전국 지역 코드 매핑 테스트');
+  print('==================================================');
+  print('총 테스트 지역: ${targetRegions.length}개');
+  print('==================================================');
+
   // ============================================================
-  // 1. 지역별 매핑 확인
+  // TourAPI 시도 목록 조회
   // ============================================================
+
+  final List<Map<String, String>> regions =
+      await TourismApiService.getRegions();
 
   print('');
-  print('==========================================');
-  print('SNOB 지역 매핑 + API 전체 테스트');
-  print('==========================================');
-  print('테스트 지역 : ${testRegions.length}개');
-  print('');
+  print('TourAPI 시도 조회 완료');
+  print('전체 시도 수: ${regions.length}');
+  print('==================================================');
 
-  // ============================================================
-  // 같은 집중률 API 지역은 한 번만 조회하기 위한 Map
-  //
-  // 예:
-  // 영종구   → 28 / 28110
-  // 제물포구 → 28 / 28110
-  //
-  // 같은 API 지역이므로 실제 API 호출은 한 번만 수행
-  // ============================================================
-
-  final Map<String, List<String>> mappedRegions = {};
-
-  for (final Map<String, String> region in testRegions) {
-    final String regionCode =
-        region['regionCode']!;
-
-    final String sigunguCode =
-        region['sigunguCode']!;
-
-    final String regionName =
-        region['regionName']!;
-
-    final List<RegionQuery> queries =
-        RegionMappingService.getQueryRegions(
-      regionCode: regionCode,
-      sigunguCode: sigunguCode,
-      regionName: regionName,
-    );
-
-    print('------------------------------------------');
-    print('현재 지역 : $regionName');
-
-    if (queries.isEmpty) {
-      print('❌ 매핑 결과 없음');
-      print('');
-      continue;
-    }
-
-    for (final RegionQuery query in queries) {
-      print('→ 집중률 areaCd   : ${query.areaCd}');
-      print('→ 집중률 signguCd : ${query.signguCd}');
-      print('→ 이유            : ${query.reason}');
-
-      final String key =
-          '${query.areaCd}|${query.signguCd}';
-
-      mappedRegions.putIfAbsent(
-        key,
-        () => [],
-      );
-
-      mappedRegions[key]!.add(
-        regionName,
-      );
-    }
-
+  if (regions.isEmpty) {
     print('');
+    print('❌ TourAPI 시도 조회 실패');
+    print('테스트를 종료합니다.');
+    return;
   }
 
   // ============================================================
-  // 2. 실제 API 조회
+  // 결과 저장
   // ============================================================
 
-  print('');
-  print('==========================================');
-  print('실제 집중률 API 조회');
-  print('==========================================');
-  print('중복 지역 코드는 1번만 조회합니다.');
-  print('');
-
   int successCount = 0;
-  int emptyCount = 0;
-  int errorCount = 0;
+  int failCount = 0;
 
-  for (final MapEntry<String, List<String>> entry
-      in mappedRegions.entries) {
-    final String key = entry.key;
+  final List<String> failedRegions = [];
 
-    final List<String> currentRegions =
-        entry.value;
+  // ============================================================
+  // 지역별 테스트
+  // ============================================================
 
-    final List<String> code =
-        key.split('|');
-
-    final String areaCd = code[0];
-    final String signguCd = code[1];
+  for (int i = 0; i < targetRegions.length; i++) {
+    final String targetRegion =
+        targetRegions[i];
 
     print('');
-    print('==========================================');
-    print('집중률 API 지역');
-    print('==========================================');
-    print('areaCd   : $areaCd');
-    print('signguCd : $signguCd');
     print('');
-    print('연결되는 현재 지역');
+    print('==================================================');
+    print(
+      '[${i + 1}/${targetRegions.length}] '
+      '$targetRegion',
+    );
+    print('==================================================');
 
-    for (final String regionName
-        in currentRegions) {
-      print(' - $regionName');
-    }
+    Map<String, String>? selectedRegion;
+    String? selectedSigunguCode;
+    String? selectedSigunguName;
 
-    print('');
-    print('API 조회 시작');
+    // ==========================================================
+    // 1. TourAPI 시도 찾기
+    // ==========================================================
 
-    try {
-      final List<Map<String, dynamic>> data =
-          await congestionService.getAllCongestion(
-        areaCd: areaCd,
-        signguCd: signguCd,
+    for (final Map<String, String> region
+        in regions) {
+      final String regionCode =
+          region['code'] ?? '';
+
+      final String regionName =
+          region['name'] ?? '';
+
+      // --------------------------------------------------------
+      // 시도 자체
+      // --------------------------------------------------------
+
+      if (targetRegion == regionName) {
+        selectedRegion = region;
+        break;
+      }
+
+      // --------------------------------------------------------
+      // 시도 + 시군구
+      // --------------------------------------------------------
+
+      if (!targetRegion.startsWith(
+        '$regionName ',
+      )) {
+        continue;
+      }
+
+      final String sigunguName =
+          targetRegion
+              .substring(
+                regionName.length,
+              )
+              .trim();
+
+      // --------------------------------------------------------
+      // 해당 시도의 시군구 조회
+      // --------------------------------------------------------
+
+      final List<Map<String, String>>
+          sigungus =
+          await TourismApiService.getSigungus(
+        regionCode,
       );
 
-      // ----------------------------------------------------------
-      // 데이터가 없는 경우
-      // ----------------------------------------------------------
+      // --------------------------------------------------------
+      // 시군구 찾기
+      // --------------------------------------------------------
 
-      if (data.isEmpty) {
-        print('');
-        print('⚠️ 조회 데이터 없음');
+      for (final Map<String, String> sigungu
+          in sigungus) {
+        final String code =
+            sigungu['code'] ?? '';
 
-        emptyCount++;
+        final String name =
+            sigungu['name'] ?? '';
+
+        if (name == sigunguName) {
+          selectedRegion = region;
+          selectedSigunguCode = code;
+          selectedSigunguName = name;
+
+          break;
+        }
+      }
+
+      if (selectedRegion != null) {
+        break;
+      }
+    }
+
+    // ==========================================================
+    // TourAPI 지역 찾기 실패
+    // ==========================================================
+
+    if (selectedRegion == null) {
+      print('');
+      print('❌ TourAPI 지역 찾기 실패');
+      print('지역: $targetRegion');
+
+      failCount++;
+      failedRegions.add(targetRegion);
+
+      continue;
+    }
+
+    final String tourRegionCode =
+        selectedRegion['code']!;
+
+    final String tourRegionName =
+        selectedRegion['name'] ?? '';
+
+    // ==========================================================
+    // 시군구가 없는 경우
+    // ==========================================================
+
+    if (selectedSigunguCode == null) {
+      final List<Map<String, String>>
+          sigungus =
+          await TourismApiService.getSigungus(
+        tourRegionCode,
+      );
+
+      if (sigungus.isNotEmpty) {
+        selectedSigunguCode =
+            sigungus.first['code'];
+
+        selectedSigunguName =
+            sigungus.first['name'];
+      }
+    }
+
+    if (selectedSigunguCode == null) {
+      print('');
+      print('❌ TourAPI 시군구 코드 없음');
+      print('지역: $targetRegion');
+
+      failCount++;
+      failedRegions.add(targetRegion);
+
+      continue;
+    }
+
+    // ==========================================================
+    // TourAPI 결과 출력
+    // ==========================================================
+
+    print('');
+    print('TourAPI 결과');
+    print(
+      '  시도   : '
+      '$tourRegionCode / '
+      '$tourRegionName',
+    );
+
+    print(
+      '  시군구 : '
+      '$selectedSigunguCode / '
+      '$selectedSigunguName',
+    );
+
+    // ==========================================================
+    // RegionMappingService 실행
+    // ==========================================================
+
+    final List<RegionQuery> queries =
+        RegionMappingService.getQueryRegions(
+      regionCode: tourRegionCode,
+      sigunguCode: selectedSigunguCode,
+      regionName: targetRegion,
+    );
+
+    // ==========================================================
+    // 매핑 실패
+    // ==========================================================
+
+    if (queries.isEmpty) {
+      print('');
+      print('❌ 집중률 API 매핑 실패');
+      print('지역: $targetRegion');
+
+      failCount++;
+      failedRegions.add(targetRegion);
+
+      continue;
+    }
+
+    // ==========================================================
+    // 매핑 결과 확인
+    // ==========================================================
+
+    bool localSuccess = true;
+
+    for (final RegionQuery query
+        in queries) {
+      print('');
+      print('집중률 API 결과');
+      print(
+        '  areaCd   : ${query.areaCd}',
+      );
+      print(
+        '  signguCd : ${query.signguCd}',
+      );
+      print(
+        '  reason   : ${query.reason}',
+      );
+
+      // --------------------------------------------------------
+      // 기본 코드 형식 확인
+      // --------------------------------------------------------
+
+      if (query.areaCd.isEmpty ||
+          query.signguCd.isEmpty) {
+        localSuccess = false;
+
+        print(
+          '❌ 집중률 API 코드가 비어 있습니다.',
+        );
 
         continue;
       }
 
-      // ----------------------------------------------------------
-      // 데이터가 있는 경우
-      // ----------------------------------------------------------
-
-      successCount++;
-
-      print('');
-      print('✅ 조회 성공');
-      print('데이터 개수 : ${data.length}개');
-
-      // ----------------------------------------------------------
-      // 실제 API 지역 정보
-      // ----------------------------------------------------------
-
-      final Set<String> responseRegions = {};
-
-      for (final Map<String, dynamic> item
-          in data) {
-        final String responseAreaCd =
-            item['areaCd']?.toString().trim() ?? '';
-
-        final String responseSignguCd =
-            item['signguCd']?.toString().trim() ?? '';
-
-        final String responseAreaNm =
-            item['areaNm']?.toString().trim() ?? '';
-
-        final String responseSignguNm =
-            item['signguNm']?.toString().trim() ?? '';
-
-        responseRegions.add(
-          '$responseAreaCd | '
-          '$responseSignguCd | '
-          '$responseAreaNm | '
-          '$responseSignguNm',
-        );
-      }
-
-      print('');
-      print('실제 API 지역');
-
-      for (final String region
-          in responseRegions) {
-        print(' - $region');
-      }
-
-      // ----------------------------------------------------------
-      // 관광지 샘플
-      // ----------------------------------------------------------
-
-      print('');
-      print('관광지 샘플');
-
-      final int sampleCount =
-          data.length > 5
-              ? 5
-              : data.length;
-
-      for (int i = 0;
-          i < sampleCount;
-          i++) {
-        final Map<String, dynamic> item =
-            data[i];
+      if (!RegExp(
+        r'^\d+$',
+      ).hasMatch(query.areaCd)) {
+        localSuccess = false;
 
         print(
-          ' ${i + 1}. '
-          '${item['tAtsNm']} '
-          '| 집중률: ${item['cnctrRate']} '
-          '| 기준일: ${item['baseYmd']}',
+          '❌ areaCd 형식 오류: '
+          '${query.areaCd}',
         );
       }
-    } catch (e) {
+
+      if (!RegExp(
+        r'^\d{5}$',
+      ).hasMatch(query.signguCd)) {
+        localSuccess = false;
+
+        print(
+          '❌ signguCd 형식 오류: '
+          '${query.signguCd}',
+        );
+      }
+    }
+
+    // ==========================================================
+    // 지역 최종 판정
+    // ==========================================================
+
+    if (localSuccess) {
       print('');
-      print('❌ API 조회 오류');
-      print('오류 : $e');
+      print('✅ 매핑 성공');
 
-      errorCount++;
+      successCount++;
+    } else {
+      print('');
+      print('❌ 매핑 실패');
+
+      failCount++;
+      failedRegions.add(targetRegion);
     }
   }
 
   // ============================================================
-  // 3. 최종 결과
+  // 최종 결과
   // ============================================================
 
   print('');
   print('');
-  print('==========================================');
-  print('최종 테스트 결과');
-  print('==========================================');
-
+  print('==================================================');
+  print('SNOB 전국 지역 코드 매핑 테스트 결과');
+  print('==================================================');
   print(
-    '테스트 현재 지역 : '
-    '${testRegions.length}개',
+    '전체 테스트 : ${targetRegions.length}개',
   );
-
   print(
-    '고유 API 지역    : '
-    '${mappedRegions.length}개',
+    '매핑 성공    : $successCount개',
   );
-
   print(
-    '조회 성공        : '
-    '$successCount개',
+    '매핑 실패    : $failCount개',
   );
-
-  print(
-    '데이터 없음      : '
-    '$emptyCount개',
-  );
-
-  print(
-    'API 오류         : '
-    '$errorCount개',
-  );
-
-  print('');
+  print('==================================================');
 
   // ============================================================
-  // 4. 매핑 결과 요약
+  // 실패 지역 출력
   // ============================================================
 
-  print('==========================================');
-  print('매핑 결과 요약');
-  print('==========================================');
-
-  for (final MapEntry<String, List<String>> entry
-      in mappedRegions.entries) {
-    final List<String> code =
-        entry.key.split('|');
-
-    final String areaCd = code[0];
-    final String signguCd = code[1];
-
+  if (failedRegions.isNotEmpty) {
     print('');
-    print(
-      '집중률 API : '
-      '$areaCd / $signguCd',
-    );
+    print('❌ 실패한 지역');
+    print('--------------------------------------------------');
 
-    print('현재 지역 :');
-
-    for (final String regionName
-        in entry.value) {
-      print(' - $regionName');
+    for (final String region
+        in failedRegions) {
+      print(
+        '- $region',
+      );
     }
+
+    print('--------------------------------------------------');
+  } else {
+    print('');
+    print('🎉 모든 테스트 지역의 매핑이 성공했습니다.');
   }
 
+  // ============================================================
+  // 최종 판정
+  // ============================================================
+
   print('');
-  print('==========================================');
-  print('테스트 종료');
-  print('==========================================');
+  print('==================================================');
+
+  if (failCount == 0) {
+    print('✅ 전국 주요 지역 매핑 테스트 통과');
+  } else {
+    print(
+      '⚠️ 일부 지역의 매핑을 확인해야 합니다.',
+    );
+  }
+
+  print('==================================================');
 }
