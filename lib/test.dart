@@ -1,257 +1,448 @@
-import 'dart:io';
-
-import 'package:excel/excel.dart';
+import 'package:snob/region_mapping/region_mapping_service.dart';
 import 'package:snob/services/tourism_api_service.dart';
 
 Future<void> main() async {
+  // ============================================================
+  // 테스트할 지역 목록
+  // ============================================================
+  //
+  // 일반 지역 + 행정구역 예외 지역을 함께 테스트한다.
+  //
+  // 각 지역에 대해:
+  //
+  // 지역명
+  //   ↓
+  // TourAPI 시도 코드
+  //   ↓
+  // TourAPI 시군구 코드
+  //   ↓
+  // RegionMappingService
+  //   ↓
+  // 집중률 API 코드
+  //
+  // 를 확인한다.
+  // ============================================================
+
+  const List<String> targetRegions = [
+    // ----------------------------------------------------------
+    // 일반 지역
+    // ----------------------------------------------------------
+
+    '서울특별시 성동구',
+    '부산광역시 해운대구',
+    '대구광역시 서구',
+    '대전광역시 유성구',
+    '울산광역시 남구',
+
+    '경기도 이천시',
+    '경기도 수원시 영통구',
+
+    '충청북도 청주시 서원구',
+    '충청남도 계룡시',
+
+    '전남광주통합특별시 여수시',
+    '경상북도 상주시',
+    '경상남도 김해시',
+
+    '강원특별자치도 평창군',
+    '전북특별자치도 전주시 덕진구',
+
+    '제주특별자치도 제주시',
+
+    // ----------------------------------------------------------
+    // 인천 행정구역 개편
+    // ----------------------------------------------------------
+
+    '인천광역시 영종구',
+    '인천광역시 제물포구',
+    '인천광역시 서해구',
+    '인천광역시 검단구',
+
+    // ----------------------------------------------------------
+    // 화성시 행정구역 개편
+    // ----------------------------------------------------------
+
+    '경기도 화성시',
+    '경기도 화성시 만세구',
+    '경기도 화성시 효행구',
+    '경기도 화성시 병점구',
+    '경기도 화성시 동탄구',
+
+    // ----------------------------------------------------------
+    // 전남광주통합특별시
+    // ----------------------------------------------------------
+
+    '전남광주통합특별시 동구',
+    '전남광주통합특별시 서구',
+    '전남광주통합특별시 남구',
+    '전남광주통합특별시 북구',
+    '전남광주통합특별시 광산구',
+
+    '전남광주통합특별시 목포시',
+    '전남광주통합특별시 여수시',
+    '전남광주통합특별시 순천시',
+    '전남광주통합특별시 나주시',
+    '전남광주통합특별시 광양시',
+  ];
+
   print('');
-  print('==========================================');
-  print('SNOB TourAPI 지역 코드 XLSX 생성');
-  print('==========================================');
+  print('==================================================');
+  print('SNOB 전국 지역 코드 매핑 테스트');
+  print('==================================================');
+  print('총 테스트 지역: ${targetRegions.length}개');
+  print('==================================================');
+
+  // ============================================================
+  // TourAPI 시도 목록 조회
+  // ============================================================
+
+  final List<Map<String, String>> regions =
+      await TourismApiService.getRegions();
+
+  print('');
+  print('TourAPI 시도 조회 완료');
+  print('전체 시도 수: ${regions.length}');
+  print('==================================================');
+
+  if (regions.isEmpty) {
+    print('');
+    print('❌ TourAPI 시도 조회 실패');
+    print('테스트를 종료합니다.');
+    return;
+  }
 
   // ============================================================
   // 결과 저장
   // ============================================================
 
-  final List<Map<String, String>> result = [];
+  int successCount = 0;
+  int failCount = 0;
+
+  final List<String> failedRegions = [];
 
   // ============================================================
-  // 1. 시도 조회
+  // 지역별 테스트
   // ============================================================
 
-  print('');
-  print('시도 코드 조회 중...');
-
-  final regions =
-      await TourismApiService.getRegions();
-
-  print(
-    '조회된 시도 수 : ${regions.length}개',
-  );
-
-  if (regions.isEmpty) {
-    print('❌ 시도 데이터를 가져오지 못했습니다.');
-    return;
-  }
-
-  // ============================================================
-  // 2. 시도 → 시군구 조회
-  // ============================================================
-
-  for (int i = 0;
-      i < regions.length;
-      i++) {
-    final String regionCode =
-        regions[i]['code'] ?? '';
-
-    final String regionName =
-        regions[i]['name'] ?? '';
+  for (int i = 0; i < targetRegions.length; i++) {
+    final String targetRegion =
+        targetRegions[i];
 
     print('');
+    print('');
+    print('==================================================');
     print(
-      '[${i + 1}/${regions.length}] '
-      '$regionCode / $regionName',
+      '[${i + 1}/${targetRegions.length}] '
+      '$targetRegion',
     );
+    print('==================================================');
 
-    final sigungus =
-        await TourismApiService.getSigungus(
-      regionCode,
-    );
+    Map<String, String>? selectedRegion;
+    String? selectedSigunguCode;
+    String? selectedSigunguName;
 
-    print(
-      '시군구 : ${sigungus.length}개',
-    );
+    // ==========================================================
+    // 1. TourAPI 시도 찾기
+    // ==========================================================
 
-    // ----------------------------------------------------------
-    // 시군구 데이터 저장
-    // ----------------------------------------------------------
+    for (final Map<String, String> region
+        in regions) {
+      final String regionCode =
+          region['code'] ?? '';
 
-    for (final sigungu in sigungus) {
-      final String sigunguCode =
-          sigungu['code'] ?? '';
+      final String regionName =
+          region['name'] ?? '';
 
-      final String sigunguName =
-          sigungu['name'] ?? '';
+      // --------------------------------------------------------
+      // 시도 자체
+      // --------------------------------------------------------
 
-      if (sigunguCode.isEmpty ||
-          sigunguName.isEmpty) {
+      if (targetRegion == regionName) {
+        selectedRegion = region;
+        break;
+      }
+
+      // --------------------------------------------------------
+      // 시도 + 시군구
+      // --------------------------------------------------------
+
+      if (!targetRegion.startsWith(
+        '$regionName ',
+      )) {
         continue;
       }
 
-      result.add({
-        'regionCode': regionCode,
-        'regionName': regionName,
-        'sigunguCode': sigunguCode,
-        'sigunguName': sigunguName,
-      });
+      final String sigunguName =
+          targetRegion
+              .substring(
+                regionName.length,
+              )
+              .trim();
+
+      // --------------------------------------------------------
+      // 해당 시도의 시군구 조회
+      // --------------------------------------------------------
+
+      final List<Map<String, String>>
+          sigungus =
+          await TourismApiService.getSigungus(
+        regionCode,
+      );
+
+      // --------------------------------------------------------
+      // 시군구 찾기
+      // --------------------------------------------------------
+
+      for (final Map<String, String> sigungu
+          in sigungus) {
+        final String code =
+            sigungu['code'] ?? '';
+
+        final String name =
+            sigungu['name'] ?? '';
+
+        if (name == sigunguName) {
+          selectedRegion = region;
+          selectedSigunguCode = code;
+          selectedSigunguName = name;
+
+          break;
+        }
+      }
+
+      if (selectedRegion != null) {
+        break;
+      }
+    }
+
+    // ==========================================================
+    // TourAPI 지역 찾기 실패
+    // ==========================================================
+
+    if (selectedRegion == null) {
+      print('');
+      print('❌ TourAPI 지역 찾기 실패');
+      print('지역: $targetRegion');
+
+      failCount++;
+      failedRegions.add(targetRegion);
+
+      continue;
+    }
+
+    final String tourRegionCode =
+        selectedRegion['code']!;
+
+    final String tourRegionName =
+        selectedRegion['name'] ?? '';
+
+    // ==========================================================
+    // 시군구가 없는 경우
+    // ==========================================================
+
+    if (selectedSigunguCode == null) {
+      final List<Map<String, String>>
+          sigungus =
+          await TourismApiService.getSigungus(
+        tourRegionCode,
+      );
+
+      if (sigungus.isNotEmpty) {
+        selectedSigunguCode =
+            sigungus.first['code'];
+
+        selectedSigunguName =
+            sigungus.first['name'];
+      }
+    }
+
+    if (selectedSigunguCode == null) {
+      print('');
+      print('❌ TourAPI 시군구 코드 없음');
+      print('지역: $targetRegion');
+
+      failCount++;
+      failedRegions.add(targetRegion);
+
+      continue;
+    }
+
+    // ==========================================================
+    // TourAPI 결과 출력
+    // ==========================================================
+
+    print('');
+    print('TourAPI 결과');
+    print(
+      '  시도   : '
+      '$tourRegionCode / '
+      '$tourRegionName',
+    );
+
+    print(
+      '  시군구 : '
+      '$selectedSigunguCode / '
+      '$selectedSigunguName',
+    );
+
+    // ==========================================================
+    // RegionMappingService 실행
+    // ==========================================================
+
+    final List<RegionQuery> queries =
+        RegionMappingService.getQueryRegions(
+      regionCode: tourRegionCode,
+      sigunguCode: selectedSigunguCode,
+      regionName: targetRegion,
+    );
+
+    // ==========================================================
+    // 매핑 실패
+    // ==========================================================
+
+    if (queries.isEmpty) {
+      print('');
+      print('❌ 집중률 API 매핑 실패');
+      print('지역: $targetRegion');
+
+      failCount++;
+      failedRegions.add(targetRegion);
+
+      continue;
+    }
+
+    // ==========================================================
+    // 매핑 결과 확인
+    // ==========================================================
+
+    bool localSuccess = true;
+
+    for (final RegionQuery query
+        in queries) {
+      print('');
+      print('집중률 API 결과');
+      print(
+        '  areaCd   : ${query.areaCd}',
+      );
+      print(
+        '  signguCd : ${query.signguCd}',
+      );
+      print(
+        '  reason   : ${query.reason}',
+      );
+
+      // --------------------------------------------------------
+      // 기본 코드 형식 확인
+      // --------------------------------------------------------
+
+      if (query.areaCd.isEmpty ||
+          query.signguCd.isEmpty) {
+        localSuccess = false;
+
+        print(
+          '❌ 집중률 API 코드가 비어 있습니다.',
+        );
+
+        continue;
+      }
+
+      if (!RegExp(
+        r'^\d+$',
+      ).hasMatch(query.areaCd)) {
+        localSuccess = false;
+
+        print(
+          '❌ areaCd 형식 오류: '
+          '${query.areaCd}',
+        );
+      }
+
+      if (!RegExp(
+        r'^\d{5}$',
+      ).hasMatch(query.signguCd)) {
+        localSuccess = false;
+
+        print(
+          '❌ signguCd 형식 오류: '
+          '${query.signguCd}',
+        );
+      }
+    }
+
+    // ==========================================================
+    // 지역 최종 판정
+    // ==========================================================
+
+    if (localSuccess) {
+      print('');
+      print('✅ 매핑 성공');
+
+      successCount++;
+    } else {
+      print('');
+      print('❌ 매핑 실패');
+
+      failCount++;
+      failedRegions.add(targetRegion);
     }
   }
 
   // ============================================================
-  // 3. XLSX 생성
+  // 최종 결과
   // ============================================================
 
   print('');
-  print('==========================================');
-  print('XLSX 생성');
-  print('==========================================');
-
-  final Excel excel =
-      Excel.createExcel();
-
-  final Sheet sheet =
-      excel['TourAPI_지역코드'];
-
-  // ------------------------------------------------------------
-  // 헤더
-  // ------------------------------------------------------------
-
-  final headers = [
-    'regionCode',
-    'regionName',
-    'sigunguCode',
-    'sigunguName',
-  ];
-
-  for (int col = 0;
-      col < headers.length;
-      col++) {
-    sheet.updateCell(
-      CellIndex.indexByColumnRow(
-        columnIndex: col,
-        rowIndex: 0,
-      ),
-      TextCellValue(
-        headers[col],
-      ),
-    );
-  }
-
-  // ------------------------------------------------------------
-  // 데이터
-  // ------------------------------------------------------------
-
-  for (int row = 0;
-      row < result.length;
-      row++) {
-    final data = result[row];
-
-    sheet.updateCell(
-      CellIndex.indexByColumnRow(
-        columnIndex: 0,
-        rowIndex: row + 1,
-      ),
-      TextCellValue(
-        data['regionCode'] ?? '',
-      ),
-    );
-
-    sheet.updateCell(
-      CellIndex.indexByColumnRow(
-        columnIndex: 1,
-        rowIndex: row + 1,
-      ),
-      TextCellValue(
-        data['regionName'] ?? '',
-      ),
-    );
-
-    sheet.updateCell(
-      CellIndex.indexByColumnRow(
-        columnIndex: 2,
-        rowIndex: row + 1,
-      ),
-      TextCellValue(
-        data['sigunguCode'] ?? '',
-      ),
-    );
-
-    sheet.updateCell(
-      CellIndex.indexByColumnRow(
-        columnIndex: 3,
-        rowIndex: row + 1,
-      ),
-      TextCellValue(
-        data['sigunguName'] ?? '',
-      ),
-    );
-  }
+  print('');
+  print('==================================================');
+  print('SNOB 전국 지역 코드 매핑 테스트 결과');
+  print('==================================================');
+  print(
+    '전체 테스트 : ${targetRegions.length}개',
+  );
+  print(
+    '매핑 성공    : $successCount개',
+  );
+  print(
+    '매핑 실패    : $failCount개',
+  );
+  print('==================================================');
 
   // ============================================================
-  // 4. 열 너비
+  // 실패 지역 출력
   // ============================================================
 
-  sheet.setColumnWidth(
-    0,
-    15,
-  );
-
-  sheet.setColumnWidth(
-    1,
-    20,
-  );
-
-  sheet.setColumnWidth(
-    2,
-    18,
-  );
-
-  sheet.setColumnWidth(
-    3,
-    25,
-  );
-
-  // ============================================================
-  // 5. 저장
-  // ============================================================
-
-  final List<int>? bytes =
-      excel.save();
-
-  if (bytes == null) {
+  if (failedRegions.isNotEmpty) {
     print('');
-    print('❌ XLSX 생성 실패');
-    return;
+    print('❌ 실패한 지역');
+    print('--------------------------------------------------');
+
+    for (final String region
+        in failedRegions) {
+      print(
+        '- $region',
+      );
+    }
+
+    print('--------------------------------------------------');
+  } else {
+    print('');
+    print('🎉 모든 테스트 지역의 매핑이 성공했습니다.');
   }
 
-  final String filePath =
-      '${Directory.current.path}'
-      '${Platform.pathSeparator}'
-      'tourapi_region_codes.xlsx';
-
-  final File file =
-      File(filePath);
-
-  await file.writeAsBytes(
-    bytes,
-  );
-
   // ============================================================
-  // 6. 완료
+  // 최종 판정
   // ============================================================
 
   print('');
-  print('==========================================');
-  print('✅ XLSX 생성 완료');
-  print('==========================================');
+  print('==================================================');
 
-  print(
-    '전체 시군구 수 : ${result.length}개',
-  );
+  if (failCount == 0) {
+    print('✅ 전국 주요 지역 매핑 테스트 통과');
+  } else {
+    print(
+      '⚠️ 일부 지역의 매핑을 확인해야 합니다.',
+    );
+  }
 
-  print(
-    '파일 위치 : $filePath',
-  );
-
-  print('');
-  print('엑셀 컬럼');
-  print(
-    'regionCode | regionName | '
-    'sigunguCode | sigunguName',
-  );
-
-  print('');
-  print('==========================================');
-  print('테스트 종료');
-  print('==========================================');
+  print('==================================================');
 }
