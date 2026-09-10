@@ -348,6 +348,119 @@ class TourismApiService {
 
     return spots;
   }
+    // ============================================================
+  // 관광지 상세 이미지 조회
+  // ============================================================
+  //
+  // contentId를 이용해서 detailImage2 API 호출
+  //
+  // 반환:
+  // 이미지 URL 목록
+  //
+  // 가장 첫 번째 이미지를 대표 이미지로 사용할 수 있다.
+  // ============================================================
+
+  static Future<List<String>> getTourismImages(
+    String contentId,
+  ) async {
+    if (contentId.trim().isEmpty) {
+      print(
+        "    이미지 조회 생략 : contentId 없음",
+      );
+
+      return [];
+    }
+
+    final Uri url = Uri.parse(
+      "$baseUrl/detailImage2"
+      "?serviceKey=$serviceKey"
+      "&MobileOS=AND"
+      "&MobileApp=SNOB"
+      "&_type=json"
+      "&contentId=$contentId"
+      "&imageYN=Y"
+      "&numOfRows=10"
+      "&pageNo=1",
+    );
+
+    try {
+      print(
+        "    관광지 이미지 조회 : "
+        "$contentId",
+      );
+
+      final response =
+          await http.get(url);
+
+      if (response.statusCode != 200) {
+        print(
+          "    이미지 API HTTP 오류 : "
+          "${response.statusCode}",
+        );
+
+        return [];
+      }
+
+      final dynamic data =
+          json.decode(response.body);
+
+      final List<dynamic> items =
+          _extractItems(data);
+
+      if (items.isEmpty) {
+        print(
+          "      → 이미지 없음",
+        );
+
+        return [];
+      }
+
+      final List<String> imageUrls = [];
+
+      for (final item in items) {
+        if (item is! Map) {
+          continue;
+        }
+
+        // 원본 이미지 URL
+        final String originUrl =
+            item["originimgurl"]
+                    ?.toString()
+                    .trim() ??
+                "";
+
+        // 썸네일 이미지 URL
+        final String smallUrl =
+            item["smallimageurl"]
+                    ?.toString()
+                    .trim() ??
+                "";
+
+        // 원본 이미지 우선
+        final String imageUrl =
+            originUrl.isNotEmpty
+                ? originUrl
+                : smallUrl;
+
+        if (imageUrl.isNotEmpty) {
+          imageUrls.add(imageUrl);
+        }
+      }
+
+      print(
+        "      → ${imageUrls.length}개",
+      );
+
+      return imageUrls;
+    } catch (e) {
+      print(
+        "    관광지 이미지 조회 실패 : "
+        "$contentId / $e",
+      );
+
+      return [];
+    }
+  }
 
   // ============================================================
   // 전국 관광지 조회

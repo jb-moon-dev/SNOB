@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
+
 import '../course/result_screen.dart';
 import 'personality_test_screen.dart';
+
+import '../../../services/tourism_api_service.dart';
+import '../../../widgets/tourism_image.dart';
+
+import '../../../snob/tourism_spot.dart';
 
 class ResultScreen extends StatelessWidget {
   // ============================================================
@@ -11,12 +17,6 @@ class ResultScreen extends StatelessWidget {
 
   // ============================================================
   // 추천 지역
-  //
-  // 중요:
-  // 이 값은 RecommendationEngine에서 이미
-  // canonical 210개 중 하나로 확정된 값이다.
-  //
-  // ResultScreen에서는 지역명을 다시 변환하지 않는다.
   // ============================================================
 
   final String recommendedRegion;
@@ -26,6 +26,160 @@ class ResultScreen extends StatelessWidget {
     required this.personalityType,
     required this.recommendedRegion,
   });
+
+  // ============================================================
+  // 추천 지역의 대표 관광지 가져오기
+  // ============================================================
+
+  Future<TourismSpot?> _loadRepresentativeSpot() async {
+    try {
+      final region =
+          recommendedRegion.trim();
+
+      if (region.isEmpty) {
+        return null;
+      }
+
+      // ----------------------------------------------------------
+      // 1. TourAPI 시도 목록 가져오기
+      // ----------------------------------------------------------
+
+      final regions =
+          await TourismApiService.getRegions();
+
+      Map<String, String>? matchedRegion;
+
+      for (final item in regions) {
+        final name =
+            item['name']?.trim() ?? '';
+
+        if (name.isEmpty) {
+          continue;
+        }
+
+        if (region.startsWith(name)) {
+          matchedRegion = item;
+          break;
+        }
+      }
+
+      if (matchedRegion == null) {
+        debugPrint(
+          '대표 관광지 조회 실패: 시도 매칭 실패 → $region',
+        );
+
+        return null;
+      }
+
+      final regionCode =
+          matchedRegion['code']?.trim() ?? '';
+
+      final sidoName =
+          matchedRegion['name']?.trim() ?? '';
+
+      if (regionCode.isEmpty ||
+          sidoName.isEmpty) {
+        return null;
+      }
+
+      // ----------------------------------------------------------
+      // 2. 시군구 목록 가져오기
+      // ----------------------------------------------------------
+
+      final sigungus =
+          await TourismApiService.getSigungus(
+        regionCode,
+      );
+
+      Map<String, String>? matchedSigungu;
+
+      for (final item in sigungus) {
+        final sigunguName =
+            item['name']?.trim() ?? '';
+
+        if (sigunguName.isEmpty) {
+          continue;
+        }
+
+        final fullName =
+            '$sidoName $sigunguName';
+
+        if (fullName == region) {
+          matchedSigungu = item;
+          break;
+        }
+      }
+
+      if (matchedSigungu == null) {
+        debugPrint(
+          '대표 관광지 조회 실패: 시군구 매칭 실패 → $region',
+        );
+
+        return null;
+      }
+
+      final sigunguCode =
+          matchedSigungu['code']?.trim() ?? '';
+
+      final sigunguName =
+          matchedSigungu['name']?.trim() ?? '';
+
+      if (sigunguCode.isEmpty ||
+          sigunguName.isEmpty) {
+        return null;
+      }
+
+      // ----------------------------------------------------------
+      // 3. 해당 지역 관광지 가져오기
+      // ----------------------------------------------------------
+
+      final spots =
+          await TourismApiService
+              .getTourismSpotsByLegalDong(
+        regionCode,
+        sigunguCode,
+        '$sidoName $sigunguName',
+      );
+
+      // ----------------------------------------------------------
+      // 4. contentId가 있는 관광지 하나 선택
+      // ----------------------------------------------------------
+
+      for (final spot in spots) {
+        if (spot.contentId.trim().isNotEmpty) {
+          debugPrint(
+            '========================================',
+          );
+          debugPrint('대표 관광지 선택');
+          debugPrint('지역: $region');
+          debugPrint('관광지: ${spot.title}');
+          debugPrint(
+            'contentId: ${spot.contentId}',
+          );
+          debugPrint(
+            '========================================',
+          );
+
+          return spot;
+        }
+      }
+
+      debugPrint(
+        '대표 관광지 없음 → $region',
+      );
+
+      return null;
+    } catch (e, stackTrace) {
+      debugPrint(
+        '대표 관광지 조회 오류: $e',
+      );
+      debugPrint(
+        stackTrace.toString(),
+      );
+
+      return null;
+    }
+  }
 
   // ============================================================
   // 홈으로 이동
@@ -76,22 +230,6 @@ class ResultScreen extends StatelessWidget {
       return;
     }
 
-    // ------------------------------------------------------------
-    // 중요
-    //
-    // 여기서는 지역명을 변환하지 않는다.
-    //
-    // RecommendationEngine
-    //       ↓
-    // canonical 210개 지역
-    //       ↓
-    // recommendedRegion
-    //       ↓
-    // Center50
-    //
-    // 같은 문자열을 그대로 전달한다.
-    // ------------------------------------------------------------
-
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -133,7 +271,6 @@ class ResultScreen extends StatelessWidget {
             },
           ),
         ),
-
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -180,11 +317,9 @@ class ResultScreen extends StatelessWidget {
                           color: Colors.grey,
                         ),
                       ),
-
                       const SizedBox(
                         height: 12,
                       ),
-
                       Text(
                         personalityType,
                         textAlign:
@@ -229,16 +364,71 @@ class ResultScreen extends StatelessWidget {
                         ),
                       ),
 
-                      const SizedBox(
-                        height: 12,
+                      const SizedBox(height: 16),
+
+                      // ==================================================
+                      // 대표 관광지 이미지
+                      // ==================================================
+
+                      FutureBuilder<TourismSpot?>(
+                        future:
+                            _loadRepresentativeSpot(),
+                        builder: (
+                          context,
+                          snapshot,
+                        ) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return Container(
+                              width: double.infinity,
+                              height: 180,
+                              decoration:
+                                  BoxDecoration(
+                                color:
+                                    Colors.grey.shade100,
+                                borderRadius:
+                                    BorderRadius.circular(
+                                  16,
+                                ),
+                              ),
+                              child:
+                                  const Center(
+                                child:
+                                    CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            );
+                          }
+
+                          final spot =
+                              snapshot.data;
+
+                          return ClipRRect(
+                            borderRadius:
+                                BorderRadius.circular(
+                              16,
+                            ),
+                            child: TourismImage(
+                              contentId:
+                                  spot?.contentId,
+                              width:
+                                  double.infinity,
+                              height: 180,
+                              fit:
+                                  BoxFit.cover,
+                            ),
+                          );
+                        },
                       ),
+
+                      const SizedBox(height: 16),
 
                       Text(
                         recommendedRegion,
                         textAlign:
                             TextAlign.center,
-                        style:
-                            const TextStyle(
+                        style: const TextStyle(
                           fontSize: 24,
                           fontWeight:
                               FontWeight.bold,
@@ -326,4 +516,3 @@ class ResultScreen extends StatelessWidget {
     );
   }
 }
-

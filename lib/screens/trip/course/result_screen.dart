@@ -567,6 +567,41 @@ class _CourseResultScreenState
       }
 
       // ==========================================================
+      // Substitutability에서 사용할 지역 코드
+      // ==========================================================
+      //
+      // TourAPI의 3자리 코드가 아니라
+      // 집중률 API / JSON에서 사용하는 5자리 코드 사용.
+      //
+      // 예:
+      // TourAPI      : 27 / 170
+      // 집중률 API   : 27 / 27170
+      //
+      // 이 값은 관광지별 concentrationSignguCd가 없어도
+      // 지역 전체에 동일하게 적용할 수 있다.
+      // ==========================================================
+
+      final String substitutabilityRegionCode =
+          regionQueries.first.signguCd;
+
+      debugPrint('');
+      debugPrint(
+        '========================================',
+      );
+      debugPrint(
+        'Substitutability 지역 코드',
+      );
+      debugPrint(
+        '========================================',
+      );
+      debugPrint(
+        '지역 코드: $substitutabilityRegionCode',
+      );
+      debugPrint(
+        '========================================',
+      );
+
+      // ==========================================================
       // 8. 집중률 API 조회
       // ==========================================================
 
@@ -720,6 +755,27 @@ class _CourseResultScreenState
           spotMaps =
           mappedSpots.map(
         (SnobSpot spot) {
+          // ------------------------------------------------------
+          // Substitutability용 지역 코드
+          // ------------------------------------------------------
+          //
+          // 우선 관광지에 실제 매핑된 집중률 API 코드를 사용하고,
+          // 없으면 현재 추천 지역의 집중률 API 코드 사용.
+          //
+          // 이렇게 하면 집중률 관광지명 매칭에 실패한 관광지도
+          // Substitutability 계산에서 지역 데이터를 찾을 수 있다.
+          // ------------------------------------------------------
+
+          final String? substitutabilitySignguCd =
+              spot.concentrationSignguCd ??
+                  substitutabilityRegionCode;
+
+          debugPrint(
+            'Substitutability 지역 코드 적용: '
+            '${spot.title} → '
+            '$substitutabilitySignguCd',
+          );
+
           return {
             // ----------------------------------------------------
             // 기본 관광지 데이터
@@ -804,14 +860,18 @@ class _CourseResultScreenState
             'hubCtgryMclsNm':
                 spot.lclsSystm2,
 
+            // ★ 수정
+            // TourAPI 3자리 코드가 아니라
+            // 집중률 API용 5자리 코드 사용
             'signguCd':
-                spot.lDongSignguCd,
+                substitutabilitySignguCd,
 
             'sigunguCd':
-                spot.lDongSignguCd,
+                substitutabilitySignguCd,
 
             'signguNm':
-                spot.concentrationSignguNm,
+                spot.concentrationSignguNm ??
+                    selectedSigunguName,
           };
         },
       ).toList();
