@@ -35,6 +35,14 @@ class _ItineraryScreenState
 
   int _routeCalculationToken = 0;
 
+  // ============================================================
+  // ★ 추가: 구간별 자동차 이동시간
+  // key = 현재 장소의 index
+  // value = 이전 장소 → 현재 장소 자동차 이동시간
+  // ============================================================
+
+  final Map<int, int> _carTravelMinutes = {};
+
   @override
   void initState() {
     super.initState();
@@ -205,6 +213,7 @@ class _ItineraryScreenState
 
   // ============================================================
   // ★ 실제 좌표 기반 이동시간 계산
+  // 도보 + 자동차를 함께 계산
   // ============================================================
 
   Future<void> _updateTravelTimes({
@@ -216,6 +225,7 @@ class _ItineraryScreenState
     );
 
     if (spots.length < 2) {
+      _carTravelMinutes.clear();
       return;
     }
 
@@ -229,6 +239,10 @@ class _ItineraryScreenState
     bool hasFallback = false;
     bool hasMissingCoordinates =
         false;
+
+    // 이번 계산에서 사용할 자동차 이동시간
+    final Map<int, int> newCarTravelMinutes =
+        {};
 
     try {
       for (
@@ -259,7 +273,12 @@ class _ItineraryScreenState
           continue;
         }
 
-        final route =
+        // ------------------------------------------------------
+        // ★ 도보 이동시간
+        // 기존 로직 그대로 유지
+        // ------------------------------------------------------
+
+        final walkingRoute =
             await _routeService
                 .getWalkingRoute(
           startLatitude:
@@ -284,11 +303,46 @@ class _ItineraryScreenState
         spots[i] =
             current.copyWith(
           travelMinutesFromPrevious:
-              route.durationMinutes,
+              walkingRoute.durationMinutes,
         );
 
-        if (!route.fromApi) {
+        if (!walkingRoute.fromApi) {
           hasFallback = true;
+        }
+
+        // ------------------------------------------------------
+        // ★ 자동차 이동시간
+        // Kakao Mobility 자동차 실제 경로
+        // ------------------------------------------------------
+
+        try {
+          final drivingRoute =
+              await _routeService
+                  .getDrivingRoute(
+            startLatitude:
+                previous.latitude!,
+            startLongitude:
+                previous.longitude!,
+            endLatitude:
+                current.latitude!,
+            endLongitude:
+                current.longitude!,
+          );
+
+          newCarTravelMinutes[i] =
+              drivingRoute.durationMinutes;
+        } catch (_) {
+          // 자동차 API 실패 시
+          // 화면에는 자동차 시간을 표시하지 않음
+        }
+
+        if (!mounted) {
+          return;
+        }
+
+        if (token !=
+            _routeCalculationToken) {
+          return;
         }
       }
 
@@ -311,6 +365,13 @@ class _ItineraryScreenState
               spots[i];
         }
 
+        // ★ 자동차 이동시간 저장
+        _carTravelMinutes
+          ..clear()
+          ..addAll(
+            newCarTravelMinutes,
+          );
+
         _recalculateTimes();
       });
 
@@ -328,10 +389,10 @@ class _ItineraryScreenState
             '좌표가 없는 장소는 이동시간을 계산하지 못했어요.';
       } else if (hasFallback) {
         message =
-            '일부 구간은 실제 경로 조회에 실패해 예상시간을 사용했어요.';
+            '도보 이동시간을 기준으로 일정이 계산됐어요.';
       } else {
         message =
-            '실제 도보 경로 기준으로 이동시간을 계산했어요.';
+            '도보와 자동차 이동시간을 계산했어요.';
       }
 
       ScaffoldMessenger.of(
@@ -932,8 +993,8 @@ class _ItineraryScreenState
       _recalculateTimes();
     });
 
-    // ★ 순서가 바뀌었으므로
-    // ★ 새로운 구간들을 실제 API로 재계산
+    // 순서가 바뀌었으므로
+    // 새로운 구간들을 실제 API로 재계산
     await _updateTravelTimes(
       showMessage: true,
     );
@@ -1241,33 +1302,36 @@ class _ItineraryScreenState
           const SizedBox(
             width: 8,
           ),
-          OutlinedButton(
-            onPressed:
-                _showStartTimePicker,
-            style:
-                OutlinedButton.styleFrom(
-              padding:
-                  const EdgeInsets
-                      .symmetric(
-                horizontal:
-                    13,
-                vertical:
-                    10,
-              ),
-              shape:
-                  RoundedRectangleBorder(
-                borderRadius:
-                    BorderRadius
-                        .circular(
-                  12,
+          SizedBox(
+            width: 64,
+            child: OutlinedButton(
+              onPressed:
+                  _showStartTimePicker,
+              style:
+                  OutlinedButton.styleFrom(
+                padding:
+                    const EdgeInsets
+                        .symmetric(
+                  horizontal:
+                      8,
+                  vertical:
+                      10,
+                ),
+                shape:
+                    RoundedRectangleBorder(
+                  borderRadius:
+                      BorderRadius
+                          .circular(
+                    12,
+                  ),
                 ),
               ),
-            ),
-            child:
-                Text(
-              start == null
-                  ? '설정'
-                  : '변경',
+              child:
+                  Text(
+                start == null
+                    ? '설정'
+                    : '변경',
+              ),
             ),
           ),
         ],
@@ -1403,7 +1467,8 @@ class _ItineraryScreenState
   }
 
   // ============================================================
-  // 이동 구간
+  // ★ 이동 구간
+  // 도보 + 자동차 시간 표시
   // ============================================================
 
   Widget _buildTravelSegment(
@@ -1414,8 +1479,11 @@ class _ItineraryScreenState
       return const SizedBox.shrink();
     }
 
-    final minutes =
+    final walkingMinutes =
         spot.travelMinutesFromPrevious;
+
+    final carMinutes =
+        _carTravelMinutes[index];
 
     return Padding(
       padding:
@@ -1474,6 +1542,11 @@ class _ItineraryScreenState
               const SizedBox(
                 width: 7,
               ),
+
+              // ------------------------------------------------
+              // 도보
+              // ------------------------------------------------
+
               Icon(
                 Icons
                     .directions_walk_outlined,
@@ -1483,10 +1556,10 @@ class _ItineraryScreenState
                         .shade600,
               ),
               const SizedBox(
-                width: 7,
+                width: 5,
               ),
               Text(
-                '실제 도보 경로',
+                '도보 ${_durationText(walkingMinutes)}',
                 style:
                     TextStyle(
                   fontSize:
@@ -1496,26 +1569,80 @@ class _ItineraryScreenState
                           .shade600,
                   fontWeight:
                       FontWeight
-                          .w500,
+                          .w600,
                 ),
               ),
+
+              // ------------------------------------------------
+              // 구분점
+              // ------------------------------------------------
+
               const SizedBox(
-                width: 6,
+                width: 8,
               ),
+
               Text(
-                _durationText(
-                  minutes,
-                ),
+                '·',
                 style:
-                    const TextStyle(
+                    TextStyle(
                   fontSize:
-                      12,
+                      13,
+                  color:
+                      Colors.grey
+                          .shade400,
                   fontWeight:
                       FontWeight
                           .bold,
                 ),
               ),
-              const Spacer(),
+
+              const SizedBox(
+                width: 8,
+              ),
+
+              // ------------------------------------------------
+              // 자동차
+              // ------------------------------------------------
+
+              Icon(
+                Icons
+                    .directions_car_outlined,
+                size: 17,
+                color:
+                    Colors.grey
+                        .shade600,
+              ),
+              const SizedBox(
+                width: 5,
+              ),
+              Expanded(
+                child:
+                    Text(
+                  carMinutes ==
+                          null
+                      ? '자동차 계산 중'
+                      : '차 ${_durationText(carMinutes)}',
+                  overflow:
+                      TextOverflow
+                          .ellipsis,
+                  style:
+                      TextStyle(
+                    fontSize:
+                        12,
+                    color:
+                        Colors.grey
+                            .shade600,
+                    fontWeight:
+                        FontWeight
+                            .w600,
+                  ),
+                ),
+              ),
+
+              // ------------------------------------------------
+              // 수정 아이콘
+              // ------------------------------------------------
+
               Icon(
                 Icons
                     .edit_outlined,
@@ -1598,7 +1725,6 @@ class _ItineraryScreenState
               ],
             ),
           ),
-
           SizedBox(
             width: 22,
             child:
@@ -1641,11 +1767,9 @@ class _ItineraryScreenState
               ],
             ),
           ),
-
           const SizedBox(
             width: 10,
           ),
-
           Expanded(
             child:
                 Dismissible(
@@ -1686,8 +1810,8 @@ class _ItineraryScreenState
                     const Icon(
                   Icons
                       .delete_outline,
-                  color:
-                      Colors.red,
+                  color: Colors
+                      .red,
                 ),
               ),
               onDismissed:
@@ -1851,7 +1975,6 @@ class _ItineraryScreenState
                           ),
                         ],
                       ),
-
                       if (spot.category !=
                           null) ...[
                         const SizedBox(
@@ -1868,7 +1991,6 @@ class _ItineraryScreenState
                           ),
                         ),
                       ],
-
                       if (spot.address !=
                           null) ...[
                         const SizedBox(
@@ -1883,18 +2005,15 @@ class _ItineraryScreenState
                                   .ellipsis,
                           style:
                               TextStyle(
-                            color:
-                                Colors.grey.shade500,
+                            color: Colors.grey.shade500,
                             fontSize:
                                 11,
                           ),
                         ),
                       ],
-
                       const SizedBox(
                         height: 14,
                       ),
-
                       Container(
                         padding:
                             const EdgeInsets
@@ -1965,11 +2084,9 @@ class _ItineraryScreenState
                           ],
                         ),
                       ),
-
                       const SizedBox(
                         height: 10,
                       ),
-
                       Wrap(
                         spacing:
                             7,
@@ -1982,7 +2099,6 @@ class _ItineraryScreenState
                             text:
                                 '체류 ${_durationText(spot.durationMinutes)}',
                           ),
-
                           if (index >
                               0)
                             _InfoChip(
@@ -1991,7 +2107,6 @@ class _ItineraryScreenState
                               text:
                                   '이동 ${_durationText(spot.travelMinutesFromPrevious)}',
                             ),
-
                           if (spot.snobScore !=
                               null)
                             _InfoChip(
@@ -2000,7 +2115,6 @@ class _ItineraryScreenState
                               text:
                                   'SNOB ${spot.snobScore!.toStringAsFixed(0)}',
                             ),
-
                           if (spot.latitude !=
                                   null &&
                               spot.longitude !=
@@ -2013,7 +2127,6 @@ class _ItineraryScreenState
                             ),
                         ],
                       ),
-
                       if (spot.congestion !=
                           null) ...[
                         const SizedBox(
@@ -2041,8 +2154,7 @@ class _ItineraryScreenState
                                   TextStyle(
                                 fontSize:
                                     11,
-                                color:
-                                    Colors.grey.shade600,
+                                color: Colors.grey.shade600,
                               ),
                             ),
                           ],
@@ -2072,7 +2184,7 @@ class _ItineraryScreenState
             16,
             18,
             16,
-            120,
+            160,
           ),
           buildDefaultDragHandles:
               false,
@@ -2108,7 +2220,6 @@ class _ItineraryScreenState
             );
           },
         ),
-
         if (_recalculatingRoutes)
           Positioned(
             top: 10,
@@ -2226,8 +2337,7 @@ class _ItineraryScreenState
               '아직 일정이 없어요.',
               style:
                   TextStyle(
-                fontSize:
-                    20,
+                fontSize: 20,
                 fontWeight:
                     FontWeight
                         .bold,
@@ -2245,8 +2355,7 @@ class _ItineraryScreenState
                   TextStyle(
                 color:
                     Colors.grey.shade600,
-                height:
-                    1.5,
+                height: 1.5,
               ),
             ),
             const SizedBox(
@@ -2334,21 +2443,15 @@ class _ItineraryScreenState
           const SizedBox(
             height: 8,
           ),
-
           _buildDaySelector(),
-
           const SizedBox(
             height: 10,
           ),
-
           _buildStartTimeCard(),
-
           _buildDaySummary(),
-
           const Divider(
             height: 1,
           ),
-
           Expanded(
             child: hasSpots
                 ? _buildTimeline()
@@ -2356,17 +2459,30 @@ class _ItineraryScreenState
           ),
         ],
       ),
-      floatingActionButton:
-          FloatingActionButton.extended(
-        onPressed:
-            _showPlaceSearch,
-        icon:
-            const Icon(
-          Icons.search,
-        ),
-        label:
-            const Text(
-          '장소 검색',
+      floatingActionButton: SizedBox(
+        width: 116,
+        height: 52,
+        child: FloatingActionButton.extended(
+          onPressed: _showPlaceSearch,
+          backgroundColor: Theme.of(context)
+              .colorScheme
+              .primary,
+          foregroundColor: Colors.white,
+          elevation: 4,
+          icon: const Icon(
+            Icons.search,
+            size: 20,
+          ),
+          label: const Text(
+            '장소 검색',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(26),
+          ),
         ),
       ),
     );
