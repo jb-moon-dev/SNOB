@@ -111,42 +111,19 @@ class RouteResult {
 /// ============================================================
 /// Kakao Route Service
 /// ============================================================
-///
-/// 역할
-/// ------------------------------------------------------------
-/// 1. 자동차 실제 경로
-/// 2. 도보 예상 경로
-/// 3. 대중교통 예상 경로
-/// 4. 거리 계산
-/// 5. API 실패 시 fallback
-///
-/// 현재 Kakao Mobility 일반 REST API에서
-/// 자동차 길찾기는 공식 제공된다.
-///
-/// 도보 / 대중교통은 제휴 API 영역이므로
-/// 일반 REST 키만 사용하는 현재 환경에서는
-/// 좌표 기반 예상시간으로 fallback 한다.
-/// ============================================================
 
 class RouteService {
   RouteService({
     String? restApiKey,
     http.Client? client,
-  })  : _restApiKey =
-            restApiKey ??
-                const String.fromEnvironment(
-                  '3bc005218347f7b0f3c023554bbfe13e',
-                ),
+  })  : _restApiKey = restApiKey ?? '',
         _client = client ?? http.Client();
 
   /// ============================================================
   /// API KEY
   /// ============================================================
   ///
-  /// 네가 코드에 직접 넣고 싶다면
-  /// 아래 값을 네 Kakao REST API Key로 바꾸면 된다.
-  ///
-  /// 현재는 보안을 위해 실제 키를 다시 노출하지 않는다.
+  /// 여기에 기존에 사용하던 Kakao REST API Key를 그대로 넣으면 된다.
   /// ============================================================
 
   static const String hardcodedRestApiKey =
@@ -225,11 +202,6 @@ class RouteService {
   /// ============================================================
   /// 자동차 실제 경로
   /// ============================================================
-  ///
-  /// Kakao Mobility 공식 자동차 길찾기 API
-  ///
-  /// https://apis-navi.kakaomobility.com/v1/directions
-  /// ============================================================
 
   Future<RouteResult> getDrivingRoute({
     required double startLatitude,
@@ -237,29 +209,30 @@ class RouteService {
     required double endLatitude,
     required double endLongitude,
   }) async {
-    _validateKey();
-
-    final uri = Uri.parse(
-      '$_routeBaseUrl/v1/directions',
-    ).replace(
-      queryParameters: {
-        'origin':
-            '$startLongitude,$startLatitude',
-
-        'destination':
-            '$endLongitude,$endLatitude',
-
-        'priority': 'RECOMMEND',
-
-        'summary': 'true',
-
-        'alternatives': 'false',
-
-        'road_details': 'false',
-      },
-    );
-
     try {
+      // 여기로 이동
+      _validateKey();
+
+      final uri = Uri.parse(
+        '$_routeBaseUrl/v1/directions',
+      ).replace(
+        queryParameters: {
+          'origin':
+              '$startLongitude,$startLatitude',
+
+          'destination':
+              '$endLongitude,$endLatitude',
+
+          'priority': 'RECOMMEND',
+
+          'summary': 'true',
+
+          'alternatives': 'false',
+
+          'road_details': 'false',
+        },
+      );
+
       final response = await _client.get(
         uri,
         headers: {
@@ -349,14 +322,6 @@ class RouteService {
   /// ============================================================
   /// 도보 경로
   /// ============================================================
-  ///
-  /// 현재 일반 REST 키 환경에서는
-  /// Kakao Mobility 제휴 도보 API를 사용할 수 없으므로
-  /// 좌표 기반 예상시간을 계산한다.
-  ///
-  /// 제휴 권한을 받으면 이 부분을 실제 API 호출로
-  /// 변경할 수 있다.
-  /// ============================================================
 
   Future<RouteResult> getWalkingRoute({
     required double startLatitude,
@@ -398,16 +363,6 @@ class RouteService {
   /// ============================================================
   /// 대중교통 경로
   /// ============================================================
-  ///
-  /// Kakao Mobility 대중교통 통합 길찾기는
-  /// 현재 제휴용 API이다.
-  ///
-  /// 따라서 현재 앱에서는 좌표 기반 예상시간을 사용한다.
-  ///
-  /// 실제 서비스에서는
-  /// 도보 + 버스 + 지하철 + 환승시간까지 계산하는
-  /// Kakao Mobility 제휴 API로 교체할 수 있다.
-  /// ============================================================
 
   Future<RouteResult> getPublicTransitRoute({
     required double startLatitude,
@@ -423,11 +378,6 @@ class RouteService {
       endLongitude,
     );
 
-    /// 대중교통은
-    /// 이동거리 + 정류장 접근 + 대기 + 환승을 고려해
-    /// 단순 직선거리보다 여유 있게 계산한다.
-    ///
-    /// 현재는 예상치이며 실제 대중교통 API 결과가 아니다.
     const averageSpeedKmh = 22.0;
 
     final roadDistance =
@@ -440,7 +390,6 @@ class RouteService {
                     3600))
             .round();
 
-    /// 최소 5분
     final minimumSeconds =
         5 * 60;
 
