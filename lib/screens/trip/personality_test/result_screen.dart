@@ -33,8 +33,7 @@ class ResultScreen extends StatelessWidget {
 
   Future<TourismSpot?> _loadRepresentativeSpot() async {
     try {
-      final region =
-          recommendedRegion.trim();
+      final region = recommendedRegion.trim();
 
       if (region.isEmpty) {
         return null;
@@ -44,14 +43,12 @@ class ResultScreen extends StatelessWidget {
       // 1. TourAPI 시도 목록 가져오기
       // ----------------------------------------------------------
 
-      final regions =
-          await TourismApiService.getRegions();
+      final regions = await TourismApiService.getRegions();
 
       Map<String, String>? matchedRegion;
 
       for (final item in regions) {
-        final name =
-            item['name']?.trim() ?? '';
+        final name = item['name']?.trim() ?? '';
 
         if (name.isEmpty) {
           continue;
@@ -71,14 +68,11 @@ class ResultScreen extends StatelessWidget {
         return null;
       }
 
-      final regionCode =
-          matchedRegion['code']?.trim() ?? '';
+      final regionCode = matchedRegion['code']?.trim() ?? '';
 
-      final sidoName =
-          matchedRegion['name']?.trim() ?? '';
+      final sidoName = matchedRegion['name']?.trim() ?? '';
 
-      if (regionCode.isEmpty ||
-          sidoName.isEmpty) {
+      if (regionCode.isEmpty || sidoName.isEmpty) {
         return null;
       }
 
@@ -86,23 +80,20 @@ class ResultScreen extends StatelessWidget {
       // 2. 시군구 목록 가져오기
       // ----------------------------------------------------------
 
-      final sigungus =
-          await TourismApiService.getSigungus(
+      final sigungus = await TourismApiService.getSigungus(
         regionCode,
       );
 
       Map<String, String>? matchedSigungu;
 
       for (final item in sigungus) {
-        final sigunguName =
-            item['name']?.trim() ?? '';
+        final sigunguName = item['name']?.trim() ?? '';
 
         if (sigunguName.isEmpty) {
           continue;
         }
 
-        final fullName =
-            '$sidoName $sigunguName';
+        final fullName = '$sidoName $sigunguName';
 
         if (fullName == region) {
           matchedSigungu = item;
@@ -118,14 +109,11 @@ class ResultScreen extends StatelessWidget {
         return null;
       }
 
-      final sigunguCode =
-          matchedSigungu['code']?.trim() ?? '';
+      final sigunguCode = matchedSigungu['code']?.trim() ?? '';
 
-      final sigunguName =
-          matchedSigungu['name']?.trim() ?? '';
+      final sigunguName = matchedSigungu['name']?.trim() ?? '';
 
-      if (sigunguCode.isEmpty ||
-          sigunguName.isEmpty) {
+      if (sigunguCode.isEmpty || sigunguName.isEmpty) {
         return null;
       }
 
@@ -134,8 +122,7 @@ class ResultScreen extends StatelessWidget {
       // ----------------------------------------------------------
 
       final spots =
-          await TourismApiService
-              .getTourismSpotsByLegalDong(
+          await TourismApiService.getTourismSpotsByLegalDong(
         regionCode,
         sigunguCode,
         '$sidoName $sigunguName',
@@ -215,8 +202,7 @@ class ResultScreen extends StatelessWidget {
   void _goToCourseRecommendation(
     BuildContext context,
   ) {
-    final region =
-        recommendedRegion.trim();
+    final region = recommendedRegion.trim();
 
     if (region.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -272,243 +258,245 @@ class ResultScreen extends StatelessWidget {
           ),
         ),
         body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                const SizedBox(height: 30),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  const SizedBox(height: 30),
 
-                // ==================================================
-                // 제목
-                // ==================================================
+                  // ==================================================
+                  // 제목
+                  // ==================================================
 
-                const Text(
-                  '✨ 당신의 여행 성향',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight:
-                        FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 30),
-
-                // ==================================================
-                // 여행 유형
-                // ==================================================
-
-                Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.all(24),
-                  decoration:
-                      BoxDecoration(
-                    borderRadius:
-                        BorderRadius.circular(20),
-                    color:
-                        Colors.grey.shade100,
-                  ),
-                  child: Column(
-                    children: [
-                      const Text(
-                        '당신의 여행 유형',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      const SizedBox(
-                        height: 12,
-                      ),
-                      Text(
-                        personalityType,
-                        textAlign:
-                            TextAlign.center,
-                        style:
-                            const TextStyle(
-                          fontSize: 26,
-                          fontWeight:
-                              FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // ==================================================
-                // 추천 지역
-                // ==================================================
-
-                Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.all(24),
-                  decoration:
-                      BoxDecoration(
-                    borderRadius:
-                        BorderRadius.circular(20),
-                    border: Border.all(
-                      color:
-                          Colors.grey.shade300,
+                  const Text(
+                    '✨ 당신의 여행 성향',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
-                  child: Column(
-                    children: [
-                      const Text(
-                        '📍 추천 여행 지역',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey,
+
+                  const SizedBox(height: 30),
+
+                  // ==================================================
+                  // 여행 유형
+                  // ==================================================
+
+                  Container(
+                    width: double.infinity,
+                    padding:
+                        const EdgeInsets.all(24),
+                    decoration:
+                        BoxDecoration(
+                      borderRadius:
+                          BorderRadius.circular(20),
+                      color:
+                          Colors.grey.shade100,
+                    ),
+                    child: Column(
+                      children: [
+                        const Text(
+                          '당신의 여행 유형',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey,
+                          ),
                         ),
+                        const SizedBox(
+                          height: 12,
+                        ),
+                        Text(
+                          personalityType,
+                          textAlign:
+                              TextAlign.center,
+                          style:
+                              const TextStyle(
+                            fontSize: 26,
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // ==================================================
+                  // 추천 지역
+                  // ==================================================
+
+                  Container(
+                    width: double.infinity,
+                    padding:
+                        const EdgeInsets.all(24),
+                    decoration:
+                        BoxDecoration(
+                      borderRadius:
+                          BorderRadius.circular(20),
+                      border: Border.all(
+                        color:
+                            Colors.grey.shade300,
                       ),
+                    ),
+                    child: Column(
+                      children: [
+                        const Text(
+                          '📍 추천 여행 지역',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey,
+                          ),
+                        ),
 
-                      const SizedBox(height: 16),
+                        const SizedBox(height: 16),
 
-                      // ==================================================
-                      // 대표 관광지 이미지
-                      // ==================================================
+                        // ==================================================
+                        // 대표 관광지 이미지
+                        // ==================================================
 
-                      FutureBuilder<TourismSpot?>(
-                        future:
-                            _loadRepresentativeSpot(),
-                        builder: (
-                          context,
-                          snapshot,
-                        ) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return Container(
-                              width: double.infinity,
-                              height: 180,
-                              decoration:
-                                  BoxDecoration(
-                                color:
-                                    Colors.grey.shade100,
-                                borderRadius:
-                                    BorderRadius.circular(
-                                  16,
+                        FutureBuilder<TourismSpot?>(
+                          future:
+                              _loadRepresentativeSpot(),
+                          builder: (
+                            context,
+                            snapshot,
+                          ) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return Container(
+                                width: double.infinity,
+                                height: 180,
+                                decoration:
+                                    BoxDecoration(
+                                  color:
+                                      Colors.grey.shade100,
+                                  borderRadius:
+                                      BorderRadius.circular(
+                                    16,
+                                  ),
                                 ),
-                              ),
-                              child:
-                                  const Center(
                                 child:
-                                    CircularProgressIndicator(
-                                  strokeWidth: 2,
+                                    const Center(
+                                  child:
+                                      CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
                                 ),
+                              );
+                            }
+
+                            final spot =
+                                snapshot.data;
+
+                            return ClipRRect(
+                              borderRadius:
+                                  BorderRadius.circular(
+                                16,
+                              ),
+                              child: TourismImage(
+                                contentId:
+                                    spot?.contentId,
+                                width:
+                                    double.infinity,
+                                height: 180,
+                                fit:
+                                    BoxFit.cover,
                               ),
                             );
-                          }
+                          },
+                        ),
 
-                          final spot =
-                              snapshot.data;
+                        const SizedBox(height: 16),
 
-                          return ClipRRect(
-                            borderRadius:
-                                BorderRadius.circular(
-                              16,
-                            ),
-                            child: TourismImage(
-                              contentId:
-                                  spot?.contentId,
-                              width:
-                                  double.infinity,
-                              height: 180,
-                              fit:
-                                  BoxFit.cover,
-                            ),
-                          );
-                        },
-                      ),
+                        Text(
+                          recommendedRegion,
+                          textAlign:
+                              TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
 
-                      const SizedBox(height: 16),
+                        const SizedBox(
+                          height: 12,
+                        ),
 
-                      Text(
-                        recommendedRegion,
-                        textAlign:
-                            TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 24,
+                        const Text(
+                          '당신의 여행 성향과 가장 잘 맞는 지역이에요.',
+                          textAlign:
+                              TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ============================================================
+                  // 다시 하기
+                  // ============================================================
+
+                  const SizedBox(height: 24),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        _restartTest(context);
+                      },
+                      child: const Text(
+                        '다시 하기',
+                        style: TextStyle(
+                          fontSize: 16,
                           fontWeight:
                               FontWeight.bold,
                         ),
                       ),
+                    ),
+                  ),
 
-                      const SizedBox(
-                        height: 12,
-                      ),
+                  const SizedBox(height: 12),
 
-                      const Text(
-                        '당신의 여행 성향과 가장 잘 맞는 지역이에요.',
-                        textAlign:
-                            TextAlign.center,
+                  // ==================================================
+                  // 코스 추천
+                  // ==================================================
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed:
+                          recommendedRegion
+                                  .trim()
+                                  .isEmpty
+                              ? null
+                              : () {
+                                  _goToCourseRecommendation(
+                                    context,
+                                  );
+                                },
+                      child: const Text(
+                        '코스 추천 넘어가기 →',
                         style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
+                          fontSize: 17,
+                          fontWeight:
+                              FontWeight.bold,
                         ),
                       ),
-                    ],
-                  ),
-                ),
-
-                const Spacer(),
-
-                // ==================================================
-                // 다시 하기
-                // ==================================================
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: OutlinedButton(
-                    onPressed: () {
-                      _restartTest(context);
-                    },
-                    child: const Text(
-                      '다시 하기',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
                     ),
                   ),
-                ),
 
-                const SizedBox(height: 12),
-
-                // ==================================================
-                // 코스 추천
-                // ==================================================
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed:
-                        recommendedRegion
-                                .trim()
-                                .isEmpty
-                            ? null
-                            : () {
-                                _goToCourseRecommendation(
-                                  context,
-                                );
-                              },
-                    child: const Text(
-                      '코스 추천 넘어가기 →',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-              ],
+                  const SizedBox(height: 16),
+                ],
+              ),
             ),
           ),
         ),
