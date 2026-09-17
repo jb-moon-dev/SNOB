@@ -15,6 +15,7 @@ Future<void> main() async {
 
   await KakaoSdk.init(
     nativeAppKey: 'f5c2a76b9629d32baa7816b9320e1453',
+    javaScriptAppKey: '62411923f1777b7b6b056bde95e80685',
   );
 
   print('카카오 SDK 초기화 완료');
@@ -1001,6 +1002,53 @@ class _StartScreenState extends State<StartScreen> {
     await Future.delayed(
       const Duration(milliseconds: 300),
     );
+
+    // ==========================================================
+    // 웹 카카오 로그인 callback 처리
+    // ==========================================================
+
+    final uri = Uri.base;
+    final code = uri.queryParameters['code'];
+
+    if (code != null && code.isNotEmpty) {
+      print('웹 카카오 로그인 callback 확인');
+      print('authorization code 존재');
+
+      final user = await KakaoAuthService.login(context);
+
+      if (!mounted) {
+        return;
+      }
+
+      if (user != null) {
+        print('웹 카카오 로그인 성공');
+        print('BottomNavigation으로 이동');
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const BottomNavigation(),
+          ),
+        );
+
+        return;
+      }
+
+      print('웹 카카오 로그인 실패');
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const OnboardingScreen(),
+        ),
+      );
+
+      return;
+    }
+
+    // ==========================================================
+    // 기존 로그인 상태 확인
+    // ==========================================================
 
     final bool hasToken =
         await KakaoAuthService.checkToken();

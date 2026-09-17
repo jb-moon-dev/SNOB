@@ -1,5 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 
 class KakaoAuthService {
@@ -13,6 +16,14 @@ class KakaoAuthService {
       print('========================================');
       print('카카오 로그인 시작');
       print('========================================');
+
+      // ==========================================================
+      // WEB
+      // ==========================================================
+
+      if (kIsWeb) {
+        return await _loginOnWeb();
+      }
 
       // ==========================================================
       // 1. 카카오계정 로그인 직접 실행
@@ -70,6 +81,120 @@ class KakaoAuthService {
       print('========================================');
       print('카카오 로그인 일반 오류');
       print('$e');
+      print('========================================');
+
+      return null;
+    }
+  }
+
+  // ============================================================
+  // 웹 카카오 로그인
+  // ============================================================
+
+  static Future<User?> _loginOnWeb() async {
+    try {
+      print('웹 카카오 로그인 시작');
+
+      const redirectUri =
+          'https://snob-web.vercel.app';
+
+      final uri = Uri.base;
+
+      // ==========================================================
+      // 카카오에서 돌아온 authorization code 확인
+      // ==========================================================
+
+      final code = uri.queryParameters['code'];
+
+      // ==========================================================
+      // 아직 code가 없다면 카카오 로그인 실행
+      // ==========================================================
+
+      if (code == null || code.isEmpty) {
+        print('authorization code 없음');
+        print('카카오계정 로그인 시작');
+
+        await AuthCodeClient.instance.authorize(
+          redirectUri: redirectUri,
+        );
+
+        return null;
+      }
+
+      // ==========================================================
+      // authorization code를 백엔드로 전달
+      // ==========================================================
+
+      print('authorization code 확인');
+      print('백엔드로 authorization code 전달');
+
+      final response = await http.post(
+        Uri.parse(
+          'https://snob-backend.vercel.app/api/kakao-login',
+        ),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'code': code,
+        }),
+      );
+
+      print(
+        '백엔드 응답 상태 : ${response.statusCode}',
+      );
+
+      if (response.statusCode != 200) {
+        print('백엔드 카카오 로그인 실패');
+        print('응답 : ${response.body}');
+        return null;
+      }
+
+      final data =
+          jsonDecode(response.body) as Map<String, dynamic>;
+
+      if (data['success'] != true) {
+        print('카카오 로그인 실패');
+        print('응답 : $data');
+        return null;
+      }
+
+      // ==========================================================
+      // 백엔드에서 받은 카카오 사용자 정보
+      // ==========================================================
+
+      final kakaoUser =
+          data['kakaoUser'] as Map<String, dynamic>?;
+
+      if (kakaoUser == null) {
+        print('카카오 사용자 정보 없음');
+        return null;
+      }
+
+      // ==========================================================
+      // Kakao SDK User 객체로 변환
+      // ==========================================================
+
+      User user = User.fromJson(kakaoUser);
+
+      print('웹 카카오 로그인 성공');
+      print('사용자 id : ${user.id}');
+
+      final nickname =
+          user.kakaoAccount?.profile?.nickname;
+
+      if (nickname != null) {
+        print('사용자 닉네임 : $nickname');
+      }
+
+      return user;
+    } catch (e, stackTrace) {
+      print('');
+      print('========================================');
+      print('웹 카카오 로그인 오류');
+      print('오류 타입 : ${e.runtimeType}');
+      print('오류 내용 : $e');
+      print('StackTrace : $stackTrace');
       print('========================================');
 
       return null;
