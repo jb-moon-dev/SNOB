@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../models/travel_plan.dart';
 import '../../../services/travel_plan_storage.dart';
@@ -154,10 +157,12 @@ class _CourseResultScreenState
   // ↓
   // 관광지 ↔ 집중률 매칭
   // ↓
+  // 집중률 API 전용 관광지 추가
+  // ↓
   // SnobFinal
   //
   // 집중률 매칭 실패 관광지도 삭제하지 않는다.
-  // ============================================================
+  // ==========================================================
 
   Future<void> _calculateSnob() async {
     try {
@@ -359,12 +364,6 @@ class _CourseResultScreenState
       // ==========================================================
       // 4. 시군구 코드 예외
       // ==========================================================
-      //
-      // 일반 지역은 위에서 이미 매칭됨.
-      //
-      // 시도 자체가 추천된 경우에만 첫 번째 시군구를
-      // 사용하는 기존 동작 유지.
-      // ==========================================================
 
       if (selectedSigunguCode == null) {
         final List<Map<String, String>>
@@ -493,20 +492,6 @@ class _CourseResultScreenState
         }
       }
 
-      if (tourismSpots.isEmpty) {
-        if (!mounted) {
-          return;
-        }
-
-        setState(() {
-          results = [];
-          isLoading = false;
-          errorMessage = null;
-        });
-
-        return;
-      }
-
       // ==========================================================
       // 7. 집중률 API 지역 매핑
       // ==========================================================
@@ -568,17 +553,6 @@ class _CourseResultScreenState
 
       // ==========================================================
       // Substitutability에서 사용할 지역 코드
-      // ==========================================================
-      //
-      // TourAPI의 3자리 코드가 아니라
-      // 집중률 API / JSON에서 사용하는 5자리 코드 사용.
-      //
-      // 예:
-      // TourAPI      : 27 / 170
-      // 집중률 API   : 27 / 27170
-      //
-      // 이 값은 관광지별 concentrationSignguCd가 없어도
-      // 지역 전체에 동일하게 적용할 수 있다.
       // ==========================================================
 
       final String substitutabilityRegionCode =
@@ -758,13 +732,6 @@ class _CourseResultScreenState
           // ------------------------------------------------------
           // Substitutability용 지역 코드
           // ------------------------------------------------------
-          //
-          // 우선 관광지에 실제 매핑된 집중률 API 코드를 사용하고,
-          // 없으면 현재 추천 지역의 집중률 API 코드 사용.
-          //
-          // 이렇게 하면 집중률 관광지명 매칭에 실패한 관광지도
-          // Substitutability 계산에서 지역 데이터를 찾을 수 있다.
-          // ------------------------------------------------------
 
           final String? substitutabilitySignguCd =
               spot.concentrationSignguCd ??
@@ -860,9 +827,6 @@ class _CourseResultScreenState
             'hubCtgryMclsNm':
                 spot.lclsSystm2,
 
-            // ★ 수정
-            // TourAPI 3자리 코드가 아니라
-            // 집중률 API용 5자리 코드 사용
             'signguCd':
                 substitutabilitySignguCd,
 
@@ -877,6 +841,366 @@ class _CourseResultScreenState
       ).toList();
 
       // ==========================================================
+      // ★ 10-1. 집중률 API에만 존재하는 관광지 추가
+      // ==========================================================
+      //
+      // TourAPI O + 집중률 API O
+      // → 기존 mappedSpots 사용
+      //
+      // TourAPI O + 집중률 API X
+      // → 기존 mappedSpots 사용 + 중립 집중률
+      //
+      // TourAPI X + 집중률 API O
+      // → 여기에서 새로 추가
+      //
+      // 실제 TourAPI contentId는 만들지 않는다.
+      // ==========================================================
+
+      debugPrint('');
+      debugPrint(
+        '========================================',
+      );
+      debugPrint(
+        '10-1. 집중률 API 전용 관광지 확인',
+      );
+      debugPrint(
+        '========================================',
+      );
+
+      final Set<String>
+          tourismSpotNames = {};
+
+      for (final TourismSpot spot
+          in tourismSpots) {
+        final String normalizedName =
+            SpotMappingService.normalizeName(
+          spot.title,
+        );
+
+        if (normalizedName.isNotEmpty) {
+          tourismSpotNames.add(
+            normalizedName,
+          );
+        }
+      }
+
+      // ----------------------------------------------------------
+      // 집중률 API 관광지별 대표 데이터 생성
+      // ----------------------------------------------------------
+      //
+      // 같은 관광지가 날짜별로 여러 번 들어오기 때문에
+      // 관광지 + 지역 코드별로 하나만 추가한다.
+      //
+      // 가장 최근 baseYmd를 우선한다.
+      // ----------------------------------------------------------
+
+      final Map<String, Map<String, dynamic>>
+          congestionOnlySpots = {};
+
+      for (final Map<String, dynamic> data
+          in allCongestionData) {
+        final String name =
+            data['tAtsNm']
+                    ?.toString()
+                    .trim() ??
+                '';
+
+        if (name.isEmpty) {
+          continue;
+        }
+
+        final String normalizedName =
+            SpotMappingService.normalizeName(
+          name,
+        );
+
+        if (normalizedName.isEmpty) {
+          continue;
+        }
+
+        final String areaCd =
+            data['areaCd']
+                    ?.toString()
+                    .trim() ??
+                '';
+
+        final String signguCd =
+            data['signguCd']
+                    ?.toString()
+                    .trim() ??
+                '';
+
+        // --------------------------------------------------------
+        // TourAPI에 같은 관광지가 존재하는 경우
+        // --------------------------------------------------------
+
+        if (tourismSpotNames
+            .contains(normalizedName)) {
+          continue;
+        }
+
+        // --------------------------------------------------------
+        // 같은 이름이어도 지역이 다르면 별도 관광지로 처리
+        // --------------------------------------------------------
+
+        final String congestionKey =
+            '$areaCd|'
+            '$signguCd|'
+            '$normalizedName';
+
+        final Map<String, dynamic>?
+            existing =
+            congestionOnlySpots[
+                congestionKey];
+
+        if (existing == null) {
+          congestionOnlySpots[
+              congestionKey] = data;
+
+          continue;
+        }
+
+        final String existingDate =
+            existing['baseYmd']
+                    ?.toString() ??
+                '';
+
+        final String currentDate =
+            data['baseYmd']
+                    ?.toString() ??
+                '';
+
+        if (currentDate.compareTo(
+              existingDate,
+            ) >
+            0) {
+          congestionOnlySpots[
+              congestionKey] = data;
+        }
+      }
+
+      debugPrint(
+        '집중률 API 전용 관광지: '
+        '${congestionOnlySpots.length}개',
+      );
+
+      // ----------------------------------------------------------
+      // 집중률 API 전용 관광지 → Map
+      // ----------------------------------------------------------
+
+      for (final Map<String, dynamic> data
+          in congestionOnlySpots.values) {
+        final String name =
+            data['tAtsNm']
+                    ?.toString()
+                    .trim() ??
+                '';
+
+        final String areaCd =
+            data['areaCd']
+                    ?.toString()
+                    .trim() ??
+                '';
+
+        final String signguCd =
+            data['signguCd']
+                    ?.toString()
+                    .trim() ??
+                '';
+
+        final String signguNm =
+            data['signguNm']
+                    ?.toString()
+                    .trim() ??
+                '';
+
+        final double? concentrationRate =
+            _toDouble(
+          data['cnctrRate'],
+        );
+
+        if (name.isEmpty ||
+            signguCd.isEmpty ||
+            concentrationRate == null) {
+          continue;
+        }
+
+        // --------------------------------------------------------
+        // 집중률 API의 관광지 정보에서
+        // Substitutability JSON의 카테고리를 찾는다.
+        // --------------------------------------------------------
+
+        String category = '';
+
+        try {
+          category =
+              await _findSubstitutabilityCategory(
+            signguCd:
+                signguCd,
+            spotName:
+                name,
+          );
+        } catch (e) {
+          debugPrint(
+            '카테고리 조회 실패: '
+            '$name → $e',
+          );
+        }
+
+        // --------------------------------------------------------
+        // 실제 hubTatsCd가 API에 존재하는 경우에만 사용
+        //
+        // 없으면 null로 둔다.
+        // 가짜 contentId / 가짜 hubTatsCd는 만들지 않는다.
+        // --------------------------------------------------------
+
+        final String? hubTatsCd =
+            data['hubTatsCd']
+                    ?.toString()
+                    .trim()
+                    .isNotEmpty ==
+                true
+            ? data['hubTatsCd']
+                .toString()
+                .trim()
+            : null;
+
+        final double? snobScore =
+            SpotMappingService
+                .calculateSnobScore(
+          concentrationRate,
+        );
+
+        spotMaps.add({
+          // ------------------------------------------------------
+          // 실제 TourAPI contentId가 없으므로 null
+          // ------------------------------------------------------
+
+          'contentId':
+              null,
+
+          // ------------------------------------------------------
+          // 실제 API에 존재하는 경우에만 사용
+          // ------------------------------------------------------
+
+          'hubTatsCd':
+              hubTatsCd,
+
+          'title':
+              name,
+
+          'hubTatsNm':
+              name,
+
+          'address':
+              signguNm.isEmpty
+                  ? widget.regionName
+                  : signguNm,
+
+          'contentTypeId':
+              '12',
+
+          'lDongRegnCd':
+              areaCd,
+
+          'lDongSignguCd':
+              signguCd.length >= 5
+                  ? signguCd.substring(
+                      signguCd.length - 3,
+                    )
+                  : signguCd,
+
+          'regionName':
+              widget.regionName,
+
+          'lclsSystm1':
+              '',
+
+          'lclsSystm2':
+              category,
+
+          'lclsSystm3':
+              '',
+
+          'modifiedTime':
+              '',
+
+          'latitude':
+              null,
+
+          'longitude':
+              null,
+
+          'concentrationRate':
+              concentrationRate,
+
+          'concentrationBaseYmd':
+              data['baseYmd'],
+
+          'concentrationAreaCd':
+              data['areaCd'],
+
+          'concentrationAreaNm':
+              data['areaNm'],
+
+          'concentrationSignguCd':
+              signguCd,
+
+          'concentrationSignguNm':
+              signguNm,
+
+          'snobScore':
+              snobScore,
+
+          'hubCtgryMclsNm':
+              category,
+
+          'signguCd':
+              signguCd,
+
+          'sigunguCd':
+              signguCd,
+
+          'signguNm':
+              signguNm,
+        });
+
+        debugPrint(
+          '➕ 집중률 API 전용 추가: '
+          '$name'
+          ' | 집중률: '
+          '${concentrationRate.toStringAsFixed(2)}'
+          ' | 카테고리: '
+          '${category.isEmpty ? "없음" : category}'
+          ' | hubTatsCd: '
+          '${hubTatsCd ?? "없음"}',
+        );
+      }
+
+      debugPrint('');
+      debugPrint(
+        '========================================',
+      );
+      debugPrint(
+        '10-1. 집중률 API 전용 관광지 추가 완료',
+      );
+      debugPrint(
+        '기존 관광지: '
+        '${mappedSpots.length}개',
+      );
+      debugPrint(
+        '집중률 전용 추가: '
+        '${spotMaps.length - mappedSpots.length}개',
+      );
+      debugPrint(
+        'SNOB 대상 관광지: '
+        '${spotMaps.length}개',
+      );
+      debugPrint(
+        '========================================',
+      );
+
+      // ==========================================================
       // 11. SnobFinal
       // ==========================================================
 
@@ -885,7 +1209,7 @@ class _CourseResultScreenState
         '========================================',
       );
       debugPrint(
-        '10. SNOB FINAL',
+        '11. SNOB FINAL',
       );
       debugPrint(
         '========================================',
@@ -1010,6 +1334,122 @@ class _CourseResultScreenState
         isLoading = false;
       });
     }
+  }
+
+
+  // ============================================================
+  // ★ Substitutability JSON에서 관광지 카테고리 찾기
+  // ============================================================
+
+  Future<String> _findSubstitutabilityCategory({
+    required String signguCd,
+    required String spotName,
+  }) async {
+    const String dataPath =
+        'assets/data/snob_substitutability_data.json';
+
+    final String jsonString =
+        await rootBundle.loadString(
+      dataPath,
+    );
+
+    final dynamic decoded =
+        jsonDecode(jsonString);
+
+    if (decoded is! Map<String, dynamic>) {
+      return '';
+    }
+
+    final dynamic regions =
+        decoded['regions'];
+
+    if (regions is! Map) {
+      return '';
+    }
+
+    final dynamic region =
+        regions[signguCd];
+
+    if (region is! Map) {
+      return '';
+    }
+
+    final dynamic spots =
+        region['spots'];
+
+    if (spots is! List) {
+      return '';
+    }
+
+    final String normalizedTarget =
+        SpotMappingService.normalizeName(
+      spotName,
+    );
+
+    // ------------------------------------------------------------
+    // 1. 정확한 정규화 이름 매칭
+    // ------------------------------------------------------------
+
+    for (final dynamic item
+        in spots) {
+      if (item is! Map) {
+        continue;
+      }
+
+      final String name =
+          item['hubTatsNm']
+                  ?.toString()
+                  .trim() ??
+              '';
+
+      final String category =
+          item['hubCtgryMclsNm']
+                  ?.toString()
+                  .trim() ??
+              '';
+
+      if (name.isEmpty ||
+          category.isEmpty) {
+        continue;
+      }
+
+      if (SpotMappingService.normalizeName(
+            name,
+          ) ==
+          normalizedTarget) {
+        return category;
+      }
+    }
+
+    // ------------------------------------------------------------
+    // 2. 완전 일치
+    // ------------------------------------------------------------
+
+    for (final dynamic item
+        in spots) {
+      if (item is! Map) {
+        continue;
+      }
+
+      final String name =
+          item['hubTatsNm']
+                  ?.toString()
+                  .trim() ??
+              '';
+
+      final String category =
+          item['hubCtgryMclsNm']
+                  ?.toString()
+                  .trim() ??
+              '';
+
+      if (name == spotName &&
+          category.isNotEmpty) {
+        return category;
+      }
+    }
+
+    return '';
   }
 
 

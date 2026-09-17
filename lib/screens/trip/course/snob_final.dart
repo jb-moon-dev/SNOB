@@ -140,7 +140,7 @@ class SnobFinal {
       if (id == null) {
         print('');
         print(
-          '⚠️ contentId가 없어 Crowding 결과를 '
+          '⚠️ 관광지 식별자가 없어 Crowding 결과를 '
           'ID Map에 저장하지 않습니다.',
         );
         print('관광지 : $spotName');
@@ -166,6 +166,7 @@ class SnobFinal {
 
       print(
         '$spotName'
+        ' | 내부 ID "$id"'
         ' | 집중률 ${concentration.toStringAsFixed(2)}'
         ' | Crowding ${crowdingScore.toStringAsFixed(2)}',
       );
@@ -205,7 +206,11 @@ class SnobFinal {
     // 4. Sensitivity 결과 Map
     // ============================================================
     //
-    // 관광지 식별자는 contentId 사용
+    // 관광지 식별자는
+    // contentId 우선
+    // → hubTatsCd
+    // → 지역 코드 + 관광지명
+    // 순서로 사용
     // ==============================================================
 
     final Map<String, SnobSensitivityResult>
@@ -250,13 +255,13 @@ class SnobFinal {
           _getSpotName(spot);
 
       // ----------------------------------------------------------
-      // contentId가 없으면 제외
+      // 관광지 식별자가 없는 경우만 제외
       // ----------------------------------------------------------
 
       if (id == null) {
         print('');
         print(
-          '⚠️ contentId가 없어 최종 계산에서 제외: '
+          '⚠️ 관광지 식별자가 없어 최종 계산에서 제외: '
           '$spotName',
         );
 
@@ -292,7 +297,12 @@ class SnobFinal {
       );
 
       print(
-        'contentId: "$id"',
+        '내부 식별자: "$id"',
+      );
+
+      print(
+        '실제 contentId: '
+        '"${spot['contentId'] ?? '없음'}"',
       );
 
       print(
@@ -418,30 +428,104 @@ class SnobFinal {
   }
 
   // ==============================================================
-  // 관광지 ID
+  // 관광지 내부 식별자
   // ==============================================================
   //
-  // TourAPI contentId 사용
+  // 1순위: 실제 TourAPI contentId
+  //
+  // 2순위: 집중률 API에 실제로 존재하는 hubTatsCd
+  //
+  // 3순위: 집중률 API 지역 코드 + 관광지명
+  //
+  // 중요:
+  // 이 값은 계산 과정에서만 사용하는 내부 식별자이다.
+  // 실제 spot['contentId'] 값을 변경하지 않는다.
   // ==============================================================
 
   String? _getSpotId(
     Map<String, dynamic> spot,
   ) {
-    final dynamic value =
+    // ------------------------------------------------------------
+    // 1. 실제 TourAPI contentId
+    // ------------------------------------------------------------
+
+    final dynamic contentId =
         spot['contentId'];
 
-    if (value == null) {
+    if (contentId != null) {
+      final String id =
+          contentId.toString().trim();
+
+      if (id.isNotEmpty) {
+        return 'content:$id';
+      }
+    }
+
+    // ------------------------------------------------------------
+    // 2. 실제 hubTatsCd
+    // ------------------------------------------------------------
+
+    final dynamic hubTatsCd =
+        spot['hubTatsCd'];
+
+    if (hubTatsCd != null) {
+      final String id =
+          hubTatsCd.toString().trim();
+
+      if (id.isNotEmpty) {
+        return 'hub:$id';
+      }
+    }
+
+    // ------------------------------------------------------------
+    // 3. 집중률 API 지역 코드 + 관광지명
+    // ------------------------------------------------------------
+
+    final String areaCd =
+        spot['concentrationAreaCd']
+                ?.toString()
+                .trim() ??
+            '';
+
+    final String signguCd =
+        spot['concentrationSignguCd']
+                ?.toString()
+                .trim() ??
+            '';
+
+    final String spotName =
+        _getSpotName(spot);
+
+    final String normalizedName =
+        spotName
+            .replaceAll(
+              RegExp(r'\s+'),
+              '',
+            )
+            .trim();
+
+    if (normalizedName.isEmpty) {
       return null;
     }
 
-    final String id =
-        value.toString().trim();
-
-    if (id.isEmpty) {
-      return null;
+    if (areaCd.isNotEmpty ||
+        signguCd.isNotEmpty) {
+      return 'congestion:'
+          '$areaCd|'
+          '$signguCd|'
+          '$normalizedName';
     }
 
-    return id;
+    // ------------------------------------------------------------
+    // 지역 코드가 없는 경우
+    //
+    // 일반적인 TourAPI 관광지는 위에서 contentId로 처리되고,
+    // 집중률 전용 관광지는 concentrationAreaCd /
+    // concentrationSignguCd를 가지고 있으므로
+    // 일반적으로 여기까지 오지 않는다.
+    // ------------------------------------------------------------
+
+    return null;
   }
 
   // ==============================================================
