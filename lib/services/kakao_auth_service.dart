@@ -96,7 +96,7 @@ class KakaoAuthService {
       print('웹 카카오 로그인 시작');
 
       const redirectUri =
-          'https://snob-web.vercel.app';
+          'https://jb-moon-dev.github.io/SNOB_web/';
 
       final uri = Uri.base;
 
