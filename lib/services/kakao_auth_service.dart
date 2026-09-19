@@ -101,6 +101,21 @@ class KakaoAuthService {
       final uri = Uri.base;
 
       // ==========================================================
+      // 현재 브라우저 URL 확인
+      // ==========================================================
+
+      print('현재 URL : ${uri.toString()}');
+      print('현재 URL query : ${uri.query}');
+      print(
+        'code 존재 여부 : '
+        '${uri.queryParameters.containsKey('code')}',
+      );
+      print(
+        'state 존재 여부 : '
+        '${uri.queryParameters.containsKey('state')}',
+      );
+
+      // ==========================================================
       // 카카오에서 돌아온 authorization code 확인
       // ==========================================================
 
@@ -144,6 +159,10 @@ class KakaoAuthService {
         '백엔드 응답 상태 : ${response.statusCode}',
       );
 
+      // ==========================================================
+      // 백엔드 응답 확인
+      // ==========================================================
+
       if (response.statusCode != 200) {
         print('백엔드 카카오 로그인 실패');
         print('응답 : ${response.body}');
@@ -152,6 +171,8 @@ class KakaoAuthService {
 
       final data =
           jsonDecode(response.body) as Map<String, dynamic>;
+
+      print('백엔드 응답 success : ${data['success']}');
 
       if (data['success'] != true) {
         print('카카오 로그인 실패');
